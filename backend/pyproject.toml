@@ -1,0 +1,19 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.13.0"
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "markdown2>=2.5.5",
+    "matplotlib>=3.11.1",
+    "numpy>=2.5.3",
+    "pydantic>=2.13.3",
+    "starlette>=1.6.0",
+]
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+
+[tool.fastapi]
+entrypoint = "main:app"
