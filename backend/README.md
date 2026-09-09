@@ -19,6 +19,8 @@ Le verrou de dépendances conserve aussi les bibliothèques de l'atelier.
 
 Application FastAPI, route d’accueil et environnement Python reproductible. Le dépôt ne contient que backend/.
 
+GET /article/{article_identifier} lit un fichier UTF-8 et expose son nom, son identifiant et sa source. Un article absent donne 404.
+
 ## Tests
 
 ```bash

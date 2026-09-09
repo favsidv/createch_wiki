@@ -24,7 +24,9 @@ class WikiTests(unittest.TestCase):
         self.root = Path(directory.name)
         self.articles = self.root / 'articles'
         self.articles.mkdir()
-
+        replacement = patch.object(main, 'ARTICLES_DIR', self.articles)
+        replacement.start()
+        self.addCleanup(replacement.stop)
         self.client = TestClient(main.app)
         self.addCleanup(self.client.close)
 
@@ -37,6 +39,16 @@ class WikiTests(unittest.TestCase):
     def test_root(self):
         """Return the API welcome message."""
         self.assertEqual(self.client.get('/').status_code, 200)
+
+    def test_article_reading(self):
+        """Read existing files and distinguish empty from absent content."""
+        (self.articles / 'Example.md').write_text('# Example')
+        result = self.client.get('/article/Example')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()['source'], '# Example')
+        (self.articles / 'Empty.md').write_text('')
+        self.assertEqual(self.client.get('/article/Empty').json()['source'], '')
+        self.assertEqual(self.client.get('/article/Missing').status_code, 404)
 
 
 if __name__ == '__main__':
