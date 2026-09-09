@@ -90,6 +90,12 @@ class WikiTests(unittest.TestCase):
         self.articles.rmdir()
         self.assertEqual(self.client.get('/article/Missing').status_code, 500)
 
+    def test_renderer_does_not_read_storage(self):
+        """Render a stored article object without creating a file."""
+        from rendering import build_article_response
+        record = article.StoredArticle('Example', '# Example')
+        self.assertIn('<h1>Example</h1>', build_article_response(record).content)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -31,6 +31,8 @@ config.py centralise le répertoire des articles et permet de le remplacer avec 
 
 article.py porte la lecture et les validations. exceptions.py et storage.py restent indépendants de HTTP ; main.py traduit leurs exceptions.
 
+rendering.py transforme les données d’un article en réponse HTML/Markdown. Il ne lit ni n’écrit de fichier.
+
 ## Tests
 
 ```bash

@@ -8,34 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import article
 from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError)
 from models import (Article, ErrorResponse)
-import markdown2
-
-def build_article_response(article: article.StoredArticle) -> Article:
-    """Render Markdown and build an article response.
-
-    Parameters
-    ----------
-    article : article.StoredArticle
-        Article loaded or saved by the storage layer.
-
-    Returns
-    -------
-    Article
-        Frontend response containing HTML and the original Markdown.
-
-    Notes
-    -----
-    Raw HTML is escaped rather than executed by the frontend.
-    Metadata is never passed to the Markdown renderer.
-    """
-    return Article(
-        name=article.identifier.replace("_", " "),
-        articleUrl=article.identifier,
-        content=markdown2.markdown(article.source, safe_mode="escape"),
-        source=article.source,
-    )
-
-
+from rendering import build_article_response
 
 app = FastAPI(title="Wiki API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
