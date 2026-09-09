@@ -50,6 +50,13 @@ class WikiTests(unittest.TestCase):
         self.assertEqual(self.client.get('/article/Empty').json()['source'], '')
         self.assertEqual(self.client.get('/article/Missing').status_code, 404)
 
+    def test_html_rendering(self):
+        """Render Markdown while preserving the original source."""
+        (self.articles / 'Example.md').write_text('# Example')
+        result = self.client.get('/article/Example').json()
+        self.assertIn('<h1>Example</h1>', result['content'])
+        self.assertEqual(result['source'], '# Example')
+
 
 if __name__ == '__main__':
     unittest.main()

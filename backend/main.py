@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 
+import markdown2
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -59,7 +60,7 @@ def read_article(article_identifier: str) -> Article:
         raise HTTPException(status_code=500, detail="Article storage is unavailable")
     return Article(
         name=article_identifier.replace("_", " "), articleUrl=article_identifier,
-        content=markdown_source,
+        content=markdown2.markdown(markdown_source, safe_mode="escape"),
         source=markdown_source,
     )
 

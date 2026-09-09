@@ -21,6 +21,8 @@ Application FastAPI, route d’accueil et environnement Python reproductible. Le
 
 GET /article/{article_identifier} lit un fichier UTF-8 et expose son nom, son identifiant et sa source. Un article absent donne 404.
 
+Le champ content devient du HTML ; source conserve le Markdown. Le mode d’échappement empêche le HTML brut d’être exécuté.
+
 ## Tests
 
 ```bash
