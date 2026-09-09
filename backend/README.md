@@ -27,6 +27,8 @@ Les identifiants vides ou contenant des fragments interdits sont refusés. Les l
 
 Le contrat Article est défini dans models.py, sans changer le JSON retourné.
 
+config.py centralise le répertoire des articles et permet de le remplacer avec WIKI_CONTENT_DIR.
+
 ## Tests
 
 ```bash

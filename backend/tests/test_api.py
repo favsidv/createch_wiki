@@ -71,6 +71,12 @@ class WikiTests(unittest.TestCase):
         fields = self.client.get('/openapi.json').json()['components']['schemas']['Article']['properties']
         self.assertTrue({'name', 'articleUrl', 'source', 'content'} <= set(fields))
 
+    def test_configurable_storage(self):
+        """Resolve storage from the environment in a fresh process."""
+        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
+        result = subprocess.run([sys.executable, '-B', '-c', 'from config import paths; print(paths.articles)'], cwd=Path(__file__).resolve().parents[1], env=environment, text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.strip(), str(self.articles.resolve()))
+
 
 if __name__ == '__main__':
     unittest.main()

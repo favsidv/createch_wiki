@@ -1,6 +1,5 @@
 """Read Markdown articles through a minimal FastAPI endpoint."""
 
-import os
 from pathlib import Path
 
 import markdown2
@@ -8,9 +7,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from models import Article
 
-ARTICLES_DIR = Path(os.environ.get(
-    "WIKI_CONTENT_DIR", Path(__file__).resolve().parent.parent / "content"
-)).resolve() / "articles"
+from config import paths
+
+ARTICLES_DIR = paths.articles
 
 
 
