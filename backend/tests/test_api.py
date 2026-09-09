@@ -13,6 +13,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 import main
+import article
+from config import StoragePaths
 
 class WikiTests(unittest.TestCase):
     """Check HTTP contracts against isolated temporary storage."""
@@ -24,9 +26,11 @@ class WikiTests(unittest.TestCase):
         self.root = Path(directory.name)
         self.articles = self.root / 'articles'
         self.articles.mkdir()
-        replacement = patch.object(main, 'ARTICLES_DIR', self.articles)
-        replacement.start()
-        self.addCleanup(replacement.stop)
+        self.paths = StoragePaths(self.root)
+        for module in (article,):
+            replacement = patch.object(module, 'paths', self.paths)
+            replacement.start()
+            self.addCleanup(replacement.stop)
         self.client = TestClient(main.app)
         self.addCleanup(self.client.close)
 
@@ -76,6 +80,15 @@ class WikiTests(unittest.TestCase):
         environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
         result = subprocess.run([sys.executable, '-B', '-c', 'from config import paths; print(paths.articles)'], cwd=Path(__file__).resolve().parents[1], env=environment, text=True, capture_output=True, check=True)
         self.assertEqual(result.stdout.strip(), str(self.articles.resolve()))
+
+    def test_storage_errors_remain_http_independent(self):
+        """Raise a Python exception in storage and translate it in HTTP."""
+        from exceptions import ArticleNotFoundError
+        with self.assertRaises(ArticleNotFoundError):
+            article.read_article('Missing')
+        self.assertEqual(self.client.get('/article/').status_code, 400)
+        self.articles.rmdir()
+        self.assertEqual(self.client.get('/article/Missing').status_code, 500)
 
 
 if __name__ == '__main__':

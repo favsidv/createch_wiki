@@ -1,11 +1,24 @@
-"""Define the article response contract."""
+"""Define the article request and response contracts."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-class Article(BaseModel):
-    """Return a display name, identifier, rendered HTML and Markdown."""
+class ArticleBase(BaseModel):
+    """Define the display name and URL identifier shared by articles."""
 
     name: str
     articleUrl: str
-    content: str
-    source: str
+
+
+
+
+
+class Article(ArticleBase):
+    """Return rendered HTML and the original Markdown body."""
+
+    content: str = Field(description="Article content rendered as HTML")
+    source: str = Field(description="Original Markdown content")
+
+class ErrorResponse(BaseModel):
+    """Describe an application error returned by the HTTP layer."""
+
+    detail: str
