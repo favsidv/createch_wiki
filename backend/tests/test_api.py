@@ -66,6 +66,11 @@ class WikiTests(unittest.TestCase):
         (self.articles / 'Linked.md').symlink_to(target)
         self.assertEqual(self.client.get('/article/Linked').status_code, 400)
 
+    def test_response_model(self):
+        """Describe source and HTML in the API response model."""
+        fields = self.client.get('/openapi.json').json()['components']['schemas']['Article']['properties']
+        self.assertTrue({'name', 'articleUrl', 'source', 'content'} <= set(fields))
+
 
 if __name__ == '__main__':
     unittest.main()

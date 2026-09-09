@@ -6,20 +6,13 @@ from pathlib import Path
 import markdown2
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from models import Article
 
 ARTICLES_DIR = Path(os.environ.get(
     "WIKI_CONTENT_DIR", Path(__file__).resolve().parent.parent / "content"
 )).resolve() / "articles"
 
 
-class Article(BaseModel):
-    """Return a display name, identifier, rendered HTML and Markdown."""
-
-    name: str
-    articleUrl: str
-    content: str
-    source: str
 
 
 app = FastAPI(title="Wiki API")

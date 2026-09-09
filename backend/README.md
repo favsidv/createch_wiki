@@ -25,6 +25,8 @@ Le champ content devient du HTML ; source conserve le Markdown. Le mode d’éch
 
 Les identifiants vides ou contenant des fragments interdits sont refusés. Les liens symboliques sont rejetés et les erreurs de stockage distinguées de l’absence d’un article.
 
+Le contrat Article est défini dans models.py, sans changer le JSON retourné.
+
 ## Tests
 
 ```bash
