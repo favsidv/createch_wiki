@@ -23,6 +23,8 @@ GET /article/{article_identifier} lit un fichier UTF-8 et expose son nom, son id
 
 Le champ content devient du HTML ; source conserve le Markdown. Le mode d’échappement empêche le HTML brut d’être exécuté.
 
+Les identifiants vides ou contenant des fragments interdits sont refusés. Les liens symboliques sont rejetés et les erreurs de stockage distinguées de l’absence d’un article.
+
 ## Tests
 
 ```bash

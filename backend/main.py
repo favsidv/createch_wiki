@@ -49,10 +49,16 @@ def read_article(article_identifier: str) -> Article:
         If the identifier is unsafe, the article is absent, or storage
         cannot be read.
     """
+    if (not article_identifier.strip()
+        or any(part in article_identifier for part in ("/", "\\", ".."))
+        or any(ord(character) < 32 for character in article_identifier)):
+        raise HTTPException(status_code=400, detail="Invalid article identifier")
     try:
         if not ARTICLES_DIR.is_dir():
             raise HTTPException(status_code=500, detail="Article storage is unavailable")
         article_path = ARTICLES_DIR / f"{article_identifier}.md"
+        if article_path.is_symlink() or article_path.resolve().parent != ARTICLES_DIR.resolve():
+            raise HTTPException(status_code=400, detail="Invalid article path")
         markdown_source = article_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Article not found")

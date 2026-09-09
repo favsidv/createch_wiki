@@ -57,6 +57,15 @@ class WikiTests(unittest.TestCase):
         self.assertIn('<h1>Example</h1>', result['content'])
         self.assertEqual(result['source'], '# Example')
 
+    def test_identifier_and_path_validation(self):
+        """Reject unsafe identifiers and symbolic links."""
+        self.assertEqual(self.client.get('/article/a..b').status_code, 400)
+        self.assertEqual(self.client.get('/article/a%00b').status_code, 400)
+        target = self.root / 'private.md'
+        target.write_text('Private')
+        (self.articles / 'Linked.md').symlink_to(target)
+        self.assertEqual(self.client.get('/article/Linked').status_code, 400)
+
 
 if __name__ == '__main__':
     unittest.main()
