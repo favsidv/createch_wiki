@@ -145,3 +145,29 @@ def read_article(article_identifier: str) -> StoredArticle:
         If the article does not exist.
     """
     return _read_article(article_identifier)
+
+
+def list_article_identifiers() -> list[str]:
+    """List readable article identifiers in alphabetical order.
+
+    Returns
+    -------
+    list of str
+        Identifiers excluding directories, links and non-Markdown files.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the article directory is absent.
+    """
+    require_directory(paths.articles)
+    identifiers = []
+    for article_path in paths.articles.iterdir():
+        if article_path.suffix != ".md" or article_path.is_symlink() or not article_path.is_file():
+            continue
+        try:
+            validate_article_identifier(article_path.stem)
+        except InvalidArticleIdentifierError:
+            continue
+        identifiers.append(article_path.stem)
+    return sorted(identifiers, key=lambda identifier: (identifier.casefold(), identifier))

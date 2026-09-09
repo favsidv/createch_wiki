@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import article
 from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError)
-from models import (Article, ErrorResponse)
+from models import (Article, ArticleInfo, ErrorResponse)
 from rendering import build_article_response
 
 app = FastAPI(title="Wiki API", version="1.0.0")
@@ -78,6 +78,23 @@ def _translate_storage_exceptions() -> Iterator[None]:
         raise _build_storage_exception()
 
 
+@app.get("/list", response_model=list[ArticleInfo], responses={500: _ERROR_RESPONSES[500]})
+def list_articles() -> list[ArticleInfo]:
+    """List active articles in alphabetical order.
+
+    Returns
+    -------
+    list of ArticleInfo
+        Display names and identifiers, without content or metadata.
+
+    Raises
+    ------
+    HTTPException
+        If article storage cannot be listed.
+    """
+    with _translate_storage_exceptions():
+        identifiers = article.list_article_identifiers()
+    return [ArticleInfo(name=identifier.replace("_", " "), articleUrl=identifier) for identifier in identifiers]
 
 
 @app.get("/article", response_model=None, include_in_schema=False)

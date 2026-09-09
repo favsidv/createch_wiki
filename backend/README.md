@@ -33,6 +33,8 @@ article.py porte la lecture et les validations. exceptions.py et storage.py rest
 
 rendering.py transforme les données d’un article en réponse HTML/Markdown. Il ne lit ni n’écrit de fichier.
 
+GET /list renvoie les articles triés et exclut JSON, images, dossiers, liens et identifiants invalides.
+
 ## Tests
 
 ```bash

@@ -96,6 +96,14 @@ class WikiTests(unittest.TestCase):
         record = article.StoredArticle('Example', '# Example')
         self.assertIn('<h1>Example</h1>', build_article_response(record).content)
 
+    def test_article_listing(self):
+        """Sort active Markdown and exclude other filesystem entries."""
+        (self.articles / 'b.md').write_text('# B')
+        (self.articles / 'A.md').write_text('# A')
+        (self.articles / 'image.jpg').write_bytes(b'')
+        (self.articles / 'folder.md').mkdir()
+        self.assertEqual([item['articleUrl'] for item in self.client.get('/list').json()], ['A', 'b'])
+
 
 if __name__ == '__main__':
     unittest.main()

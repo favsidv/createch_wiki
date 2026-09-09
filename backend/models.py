@@ -9,6 +9,8 @@ class ArticleBase(BaseModel):
     articleUrl: str
 
 
+class ArticleInfo(ArticleBase):
+    """Define list information independently of the detailed article."""
 
 
 
