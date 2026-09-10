@@ -23,3 +23,7 @@ class ArticleNotFoundError(FileNotFoundError):
 
 class InvalidStoredDataError(ValueError):
     """Indicate that stored JSON or a storage file is invalid."""
+
+
+class InvalidCommentError(ValueError):
+    """Indicate that a comment contains invalid text."""

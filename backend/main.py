@@ -14,6 +14,7 @@ from exceptions import (
     InvalidArticleContentError,
     InvalidArticleIdentifierError,
     InvalidArticlePathError,
+    InvalidCommentError,
     InvalidStoredDataError,
 )
 from models import (
@@ -24,6 +25,7 @@ from models import (
     DeleteResult,
     ErrorResponse,
     NewArticle,
+    NewComment,
 )
 from rendering import build_article_response
 
@@ -89,6 +91,8 @@ def _translate_storage_exceptions() -> Iterator[None]:
         raise HTTPException(status_code=400, detail="Invalid article path")
     except InvalidArticleContentError:
         raise HTTPException(status_code=400, detail="Invalid article name, content or metadata")
+    except InvalidCommentError:
+        raise HTTPException(status_code=400, detail="Invalid comment content or author")
     except ArticleNotFoundError:
         raise HTTPException(status_code=404, detail="Article not found")
     except FileExistsError:
@@ -264,6 +268,30 @@ def list_comments() -> list[Comment]:
         return comments.list_comments()
 
 
+@app.post("/comments", response_model=Comment, status_code=201, responses={
+    400: _ERROR_RESPONSES[400],
+    500: _ERROR_RESPONSES[500],
+})
+def create_comment(comment_request: NewComment) -> Comment:
+    """Create a persistent plain-text comment with a unique identifier.
+
+    Parameters
+    ----------
+    comment_request : NewComment
+        Content and optional author supplied by the frontend.
+
+    Returns
+    -------
+    Comment
+        Saved comment with a server-generated UUID.
+
+    Raises
+    ------
+    HTTPException
+        If the comment is invalid or cannot be saved.
+    """
+    with _translate_storage_exceptions():
+        return comments.create_comment(comment_request)
 
 
 @app.get("/", response_model=dict[str, str])

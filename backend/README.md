@@ -61,6 +61,8 @@ Une suppression remplace les anciennes copies en corbeille et retire un ancien J
 
 GET /comments lit les commentaires JSON dans leur ordre d’insertion, ou renvoie [] avant la première création. Les données corrompues sont refusées.
 
+POST /comments valide du texte brut, normalise l’auteur anonyme, génère un UUID et conserve les commentaires après redémarrage. Les ajouts sont verrouillés.
+
 ## Tests
 
 ```bash

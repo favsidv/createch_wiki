@@ -52,6 +52,13 @@ class ArticleUpdate(ArticleMetadata):
     content: str | None = Field(default=None, description="Replacement Markdown body")
 
 
+class NewComment(BaseModel):
+    """Receive plain text and an optional author for a site-wide comment."""
+
+    model_config = ConfigDict(strict=True)
+
+    author: str | None = ""
+    content: str = Field(description="Comment text, not HTML or Markdown")
 
 
 class Comment(BaseModel):

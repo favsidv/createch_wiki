@@ -245,6 +245,18 @@ class WikiTests(unittest.TestCase):
         (self.root / 'comments.json').write_text('{broken')
         self.assertEqual(self.client.get('/comments').status_code, 500)
 
+    def test_comment_creation_and_persistence(self):
+        """Persist anonymous comments with distinct server-generated IDs."""
+        first = self.client.post('/comments', json={'content': 'First', 'author': None})
+        second = self.client.post('/comments', json={'content': 'Second', 'author': 'Léa'})
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(first.json()['author'], '')
+        self.assertNotEqual(first.json()['id'], second.json()['id'])
+        self.assertEqual(self.client.get('/comments').json(), [first.json(), second.json()])
+        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
+        result = subprocess.run([sys.executable, '-B', '-c', 'import comments; print(len(comments.list_comments()))'], cwd=Path(__file__).resolve().parents[1], env=environment, text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.strip(), '2')
+
 
 if __name__ == '__main__':
     unittest.main()
