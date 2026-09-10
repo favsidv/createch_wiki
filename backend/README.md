@@ -39,6 +39,8 @@ POST /create valide le nom et le Markdown, génère l’identifiant et renvoie 2
 
 Un RLock protège les opérations simultanées des threads du même processus, dont les créations concurrentes.
 
+fcntl.flock étend la coordination aux processus du backend qui partagent le même stockage. Cette implémentation cible macOS/Linux.
+
 ## Tests
 
 ```bash

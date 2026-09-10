@@ -1,5 +1,6 @@
 """Provide locked file access and atomic replacement on macOS and Linux."""
 
+import fcntl
 import stat
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -53,21 +54,33 @@ def validate_storage_file(path: Path) -> None:
 
 @contextmanager
 def storage_lock(directory: Path) -> Iterator[None]:
-    """Serialize storage operations between threads of this process.
+    """Serialize access across server threads and worker processes.
 
     Parameters
     ----------
     directory : pathlib.Path
-        Existing storage root.
+        Shared storage root containing the lock file.
 
     Yields
     ------
     None
-        Control while the thread lock is held.
+        Control while the storage lock is held.
+
+    Notes
+    -----
+    The directory must exist. The advisory lock coordinates this backend,
+    not external programs editing files without taking the same lock.
     """
     require_directory(directory)
     with _thread_lock:
-        yield
+        lock_path = directory / ".wiki.lock"
+        validate_storage_file(lock_path)
+        with lock_path.open("a+b") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _replace_file(path: Path, content: bytes) -> None:

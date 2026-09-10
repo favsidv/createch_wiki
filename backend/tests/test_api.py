@@ -120,6 +120,18 @@ class WikiTests(unittest.TestCase):
             statuses = list(executor.map(lambda _: self.create().status_code, range(4)))
         self.assertEqual(sorted(statuses), [201, 409, 409, 409])
 
+    def test_worker_process_coordination(self):
+        """Prevent two workers from creating the same article."""
+        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
+        program = "from article import create_article; from models import NewArticle; create_article(NewArticle(name='Workers', content='# Worker'))"
+        processes = [subprocess.Popen([sys.executable, '-B', '-c', program], cwd=Path(__file__).resolve().parents[1], env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(3)]
+        statuses = []
+        for process in processes:
+            process.communicate(timeout=20)
+            statuses.append(process.returncode)
+        self.assertEqual(statuses.count(0), 1)
+        self.assertEqual(self.client.get('/article/Workers').status_code, 200)
+
 
 if __name__ == '__main__':
     unittest.main()
