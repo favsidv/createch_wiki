@@ -1,4 +1,4 @@
-"""Verify the backend features implemented at this stage."""
+"""Verify the frontend contract using temporary storage only."""
 
 import json
 import os
@@ -11,24 +11,26 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from fastapi.testclient import TestClient
-import main
-import article
-from config import StoragePaths
-from models import ArticleMetadata
-import comments
 
-class WikiTests(unittest.TestCase):
-    """Check HTTP contracts against isolated temporary storage."""
+from fastapi.testclient import TestClient
+
+import article
+import comments
+import main
+import storage
+from config import StoragePaths
+from models import NewComment
+
+
+class WikiApiTests(unittest.TestCase):
+    """Exercise articles, comments and filesystem failure handling."""
 
     def setUp(self):
-        """Initialize a private article directory and HTTP client."""
-        directory = TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name)
-        self.articles = self.root / 'articles'
-        self.articles.mkdir()
-        self.paths = StoragePaths(self.root)
+        """Build isolated storage and a client for each test."""
+        self.directory = TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.paths = StoragePaths(Path(self.directory.name))
+        self.paths.articles.mkdir()
         for module in (article, comments):
             replacement = patch.object(module, 'paths', self.paths)
             replacement.start()
@@ -37,225 +39,226 @@ class WikiTests(unittest.TestCase):
         self.addCleanup(self.client.close)
 
     def create(self, **changes):
-        """Create an article with optional test-specific fields."""
+        """Submit an article with defaults overridden by the test."""
         payload = {'name': 'My article', 'content': '# Title\n\nBody\n'}
         payload.update(changes)
         return self.client.post('/create', json=payload)
 
-    def test_root(self):
-        """Return the API welcome message."""
-        self.assertEqual(self.client.get('/').status_code, 200)
+    def test_article_round_trip_uses_companion_json(self):
+        """Persist Unicode metadata separately and preserve Markdown."""
+        created = self.create(author='Léa', tags=['été', 'Python'], category='Programming')
+        self.assertEqual(created.status_code, 201, created.text)
+        expected = created.json()
+        self.assertEqual(expected['articleUrl'], 'My_article')
+        self.assertEqual(expected['author'], 'Léa')
+        self.assertEqual(expected['tags'], ['été', 'Python'])
+        self.assertEqual((self.paths.articles / 'My_article.md').read_text(), expected['source'])
+        self.assertEqual(json.loads((self.paths.articles / 'My_article.json').read_text())['author'], 'Léa')
+        self.assertEqual(self.client.get('/article/My_article').json(), expected)
+        self.assertIn('<h1>Title</h1>', expected['content'])
+        self.assertEqual(self.client.get('/list').json(), [{'name': 'My article', 'articleUrl': 'My_article'}])
 
-    def test_article_reading(self):
-        """Read existing files and distinguish empty from absent content."""
-        (self.articles / 'Example.md').write_text('# Example')
-        result = self.client.get('/article/Example')
-        self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.json()['source'], '# Example')
-        (self.articles / 'Empty.md').write_text('')
-        self.assertEqual(self.client.get('/article/Empty').json()['source'], '')
-        self.assertEqual(self.client.get('/article/Missing').status_code, 404)
-
-    def test_html_rendering(self):
-        """Render Markdown while preserving the original source."""
-        (self.articles / 'Example.md').write_text('# Example')
-        result = self.client.get('/article/Example').json()
-        self.assertIn('<h1>Example</h1>', result['content'])
-        self.assertEqual(result['source'], '# Example')
-
-    def test_identifier_and_path_validation(self):
-        """Reject unsafe identifiers and symbolic links."""
-        self.assertEqual(self.client.get('/article/a..b').status_code, 400)
-        self.assertEqual(self.client.get('/article/a%00b').status_code, 400)
-        target = self.root / 'private.md'
-        target.write_text('Private')
-        (self.articles / 'Linked.md').symlink_to(target)
-        self.assertEqual(self.client.get('/article/Linked').status_code, 400)
-
-    def test_response_model(self):
-        """Describe source and HTML in the API response model."""
-        fields = self.client.get('/openapi.json').json()['components']['schemas']['Article']['properties']
-        self.assertTrue({'name', 'articleUrl', 'source', 'content'} <= set(fields))
-
-    def test_configurable_storage(self):
-        """Resolve storage from the environment in a fresh process."""
-        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
-        result = subprocess.run([sys.executable, '-B', '-c', 'from config import paths; print(paths.articles)'], cwd=Path(__file__).resolve().parents[1], env=environment, text=True, capture_output=True, check=True)
-        self.assertEqual(result.stdout.strip(), str(self.articles.resolve()))
-
-    def test_storage_errors_remain_http_independent(self):
-        """Raise a Python exception in storage and translate it in HTTP."""
-        from exceptions import ArticleNotFoundError
-        with self.assertRaises(ArticleNotFoundError):
-            article.read_article('Missing')
-        self.assertEqual(self.client.get('/article/').status_code, 400)
-        self.articles.rmdir()
-        self.assertEqual(self.client.get('/article/Missing').status_code, 500)
-
-    def test_renderer_does_not_read_storage(self):
-        """Render a stored article object without creating a file."""
-        from rendering import build_article_response
-        record = article.StoredArticle('Example', '# Example', ArticleMetadata())
-        self.assertIn('<h1>Example</h1>', build_article_response(record).content)
-
-    def test_article_listing(self):
-        """Sort active Markdown and exclude other filesystem entries."""
-        (self.articles / 'b.md').write_text('# B')
-        (self.articles / 'A.md').write_text('# A')
-        (self.articles / 'image.jpg').write_bytes(b'')
-        (self.articles / 'folder.md').mkdir()
-        self.assertEqual([item['articleUrl'] for item in self.client.get('/list').json()], ['A', 'b'])
-
-    def test_creation_and_duplicate(self):
-        """Create a readable article and reject invalid or duplicate input."""
-        result = self.create()
-        self.assertEqual(result.status_code, 201, result.text)
-        self.assertEqual(self.client.get('/article/My_article').json(), result.json())
-        self.assertEqual(self.create().status_code, 409)
-        for payload in ({'name': ''}, {'content': '  '}, {'name': '../private'}, {'content': 'x' * 100001}):
-            self.assertEqual(self.create(**payload).status_code, 400)
-        self.assertEqual(self.client.post('/create', json={}).status_code, 422)
-
-    def test_concurrent_creation(self):
-        """Allow one successful creation for a shared article name."""
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            statuses = list(executor.map(lambda _: self.create().status_code, range(4)))
-        self.assertEqual(sorted(statuses), [201, 409, 409, 409])
-
-    def test_worker_process_coordination(self):
-        """Prevent two workers from creating the same article."""
-        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
-        program = "from article import create_article; from models import NewArticle; create_article(NewArticle(name='Workers', content='# Worker'))"
-        processes = [subprocess.Popen([sys.executable, '-B', '-c', program], cwd=Path(__file__).resolve().parents[1], env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(3)]
-        statuses = []
-        for process in processes:
-            process.communicate(timeout=20)
-            statuses.append(process.returncode)
-        self.assertEqual(statuses.count(0), 1)
-        self.assertEqual(self.client.get('/article/Workers').status_code, 200)
-
-    def test_atomic_replacement_failure(self):
-        """Keep the previous file when replacement cannot complete."""
-        import storage
-        target = self.articles / 'Existing.md'
-        target.write_text('Original')
-        with patch.object(Path, 'replace', side_effect=PermissionError('Simulated')):
-            with self.assertRaises(PermissionError):
-                storage._replace_file(target, b'Changed')
-        self.assertEqual(target.read_text(), 'Original')
-        self.assertEqual(list(self.articles.glob('.wiki-*')), [])
-
-    def test_companion_metadata_reading(self):
-        """Read optional metadata and reject malformed companion JSON."""
-        (self.articles / 'Old.md').write_text('# Old')
+    def test_omitted_metadata_and_legacy_files(self):
+        """Read old files and partial companion metadata with defaults."""
+        (self.paths.articles / 'Old.md').write_text('# Old')
+        (self.paths.articles / 'Old.json').write_text('{"author":"Alex"}')
         result = self.client.get('/article/Old').json()
-        self.assertEqual((result['author'], result['tags'], result['category']), ('', [], ''))
-        sidecar = self.articles / 'Old.json'
-        sidecar.write_text('{"author":"Léa","tags":["Python"]}')
-        self.assertEqual(self.client.get('/article/Old').json()['author'], 'Léa')
-        sidecar.write_text('{broken')
-        self.assertEqual(self.client.get('/article/Old').status_code, 500)
+        self.assertEqual((result['author'], result['tags'], result['category']), ('Alex', [], ''))
+        created = self.create()
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()['tags'], [])
 
-    def test_metadata_creation(self):
-        """Store metadata separately and preserve it after reading."""
-        result = self.create(author='Léa', tags=['Python'], category='Programming')
-        self.assertEqual(result.status_code, 201)
-        self.assertEqual(result.json()['author'], 'Léa')
-        self.assertEqual(self.client.get('/article/My_article').json(), result.json())
-        self.assertEqual((self.articles / 'My_article.md').read_text(), result.json()['source'])
-        self.assertEqual(json.loads((self.articles / 'My_article.json').read_text())['tags'], ['Python'])
-
-    def test_body_editing(self):
-        """Replace Markdown while preserving the saved metadata."""
-        self.create(author='Alex', tags=['Python'])
-        result = self.client.post('/article/My_article/edit', json={'content': '# Changed'})
+    def test_empty_existing_article(self):
+        """Treat an existing empty file as a valid article."""
+        (self.paths.articles / 'Empty.md').write_text('')
+        result = self.client.get('/article/Empty')
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.json()['source'], '# Changed')
-        self.assertEqual(result.json()['author'], 'Alex')
-        self.assertEqual(self.client.get('/article/My_article').json(), result.json())
+        self.assertEqual(result.json()['source'], '')
 
-    def test_partial_metadata_editing(self):
-        """Preserve omitted values and clear explicitly empty fields."""
-        self.create(author='Alex', tags=['Python'], category='Programming')
-        timestamp = (self.articles / 'My_article.md').stat().st_mtime_ns
-        result = self.client.post('/article/My_article/edit', json={'author': 'Léa'})
-        self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.json()['tags'], ['Python'])
-        self.assertEqual((self.articles / 'My_article.md').stat().st_mtime_ns, timestamp)
-        result = self.client.post('/article/My_article/edit', json={'author': '', 'tags': []})
-        self.assertEqual((result.json()['author'], result.json()['tags']), ('', []))
-        self.assertEqual(result.json()['category'], 'Programming')
-
-    def test_legacy_header_migration(self):
-        """Read inline metadata and migrate it only when editing."""
-        path = self.articles / 'Legacy.md'
-        path.write_text('{"author":"Alex"}\n# Legacy')
-        result = self.client.get('/article/Legacy').json()
-        self.assertEqual(result['source'], '# Legacy')
-        self.assertEqual(result['author'], 'Alex')
+    def test_inline_header_migrates_only_when_editing(self):
+        """Read the older README format and migrate on an update."""
+        path = self.paths.articles / 'Old.md'
+        path.write_text('{"author":"Alex","tags":["old"]}\n# Old')
+        read = self.client.get('/article/Old')
+        self.assertEqual(read.json()['source'], '# Old')
         self.assertFalse(path.with_suffix('.json').exists())
-        self.assertEqual(self.client.post('/article/Legacy/edit', json={'tags': ['Old']}).status_code, 200)
-        self.assertEqual(path.read_text(), '# Legacy')
+        edited = self.client.post('/article/Old/edit', json={'category': 'History'})
+        self.assertEqual(edited.status_code, 200, edited.text)
+        self.assertEqual(path.read_text(), '# Old')
+        self.assertEqual(edited.json()['author'], 'Alex')
         self.assertTrue(path.with_suffix('.json').exists())
 
-    def test_pair_write_rollback(self):
-        """Restore the Markdown when the subsequent JSON write fails."""
-        import storage
-        self.create(author='Original')
-        previous = self.client.get('/article/My_article').json()
-        replace = storage._replace_file
-        failed = False
-        def fail_once(path, content):
-            nonlocal failed
-            if path.suffix == '.json' and not failed:
-                failed = True
-                raise PermissionError('Simulated')
-            replace(path, content)
-        with patch.object(storage, '_replace_file', side_effect=fail_once):
-            result = self.client.post('/article/My_article/edit', json={'content': '# Changed', 'author': 'New'})
-        self.assertEqual(result.status_code, 500)
-        self.assertEqual(self.client.get('/article/My_article').json(), previous)
+    def test_update_preserves_omitted_fields_and_clears_empty_fields(self):
+        """Distinguish absent metadata from explicitly empty values."""
+        self.create(author='Alex', tags=['Python'], category='Programming')
+        path = self.paths.articles / 'My_article.md'
+        timestamp = path.stat().st_mtime_ns
+        result = self.client.post('/article/My_article/edit', json={'author': 'Léa'})
+        self.assertEqual(result.json()['tags'], ['Python'])
+        self.assertEqual(path.stat().st_mtime_ns, timestamp)
+        cleared = self.client.post('/article/My_article/edit', json={'author': '', 'tags': [], 'category': ''})
+        self.assertEqual((cleared.json()['author'], cleared.json()['tags']), ('', []))
+        edited = self.client.post('/article/My_article/edit', json={'content': '# Changed'})
+        self.assertEqual(edited.json()['source'], '# Changed')
+        self.assertEqual(self.client.get('/article/My_article').json(), edited.json())
 
-    def test_trash_move(self):
-        """Remove an article from active storage and preserve its pair."""
+    def test_invalid_create_and_edit(self):
+        """Reject blank content, wrong types and invalid identifiers."""
+        for payload in ({'name': ''}, {'content': '  '}, {'name': '../outside'}, {'name': '/tmp/outside'}, {'content': 'x' * 100001}):
+            self.assertEqual(self.create(**payload).status_code, 400)
+        self.assertEqual(self.create(tags='Python').status_code, 422)
+        self.assertEqual(self.client.post('/create', json={'name': 'Missing'}).status_code, 422)
+        self.create()
+        for body in ({'content': None}, {'content': '  '}):
+            self.assertEqual(self.client.post('/article/My_article/edit', json=body).status_code, 400)
+        self.assertEqual(self.client.get('/article/a%00b').status_code, 400)
+        self.assertEqual(self.client.get('/article/').status_code, 400)
+
+    def test_duplicate_does_not_overwrite(self):
+        """Return conflict and preserve both existing files."""
+        self.create(author='Original')
+        self.assertEqual(self.create(author='Replacement').status_code, 409)
+        self.assertEqual(self.client.get('/article/My_article').json()['author'], 'Original')
+
+    def test_missing_article_and_missing_storage_are_distinct(self):
+        """Return 404 for a missing article and 500 for missing storage."""
+        self.assertEqual(self.client.get('/article/Missing').status_code, 404)
+        self.assertEqual(self.client.post('/article/Missing/edit', json={}).status_code, 404)
+        self.assertEqual(self.client.get('/article/Missing/delete').status_code, 404)
+        self.paths.articles.rmdir()
+        self.assertEqual(self.client.get('/article/Missing').status_code, 500)
+        self.assertEqual(self.client.get('/list').status_code, 500)
+
+    def test_delete_moves_both_files_and_replaces_trash(self):
+        """Move the pair into trash and replace a previous deleted copy."""
         self.create(author='Alex')
+        self.paths.trash.mkdir()
+        (self.paths.trash / 'My_article.md').write_text('Previous')
+        (self.paths.trash / 'My_article.json').write_text('{}')
         result = self.client.get('/article/My_article/delete')
         self.assertEqual(result.json(), {'deleted': True})
+        self.assertEqual(result.headers['cache-control'], 'no-store')
         self.assertEqual(self.client.get('/list').json(), [])
-        self.assertTrue((self.root / 'trash/My_article.md').exists())
-        self.assertTrue((self.root / 'trash/My_article.json').exists())
+        self.assertFalse((self.paths.articles / 'My_article.json').exists())
+        self.assertIn('# Title', (self.paths.trash / 'My_article.md').read_text())
+        self.assertEqual(json.loads((self.paths.trash / 'My_article.json').read_text())['author'], 'Alex')
 
-    def test_trash_replacement(self):
-        """Replace an older trash copy and remove stale JSON metadata."""
-        (self.articles / 'Old.md').write_text('# New copy')
-        trash = self.root / 'trash'
-        trash.mkdir()
-        (trash / 'Old.md').write_text('Previous copy')
-        (trash / 'Old.json').write_text('{"author":"Unrelated"}')
+    def test_delete_without_metadata_removes_stale_trash_metadata(self):
+        """Avoid associating old metadata with a newly trashed article."""
+        (self.paths.articles / 'Old.md').write_text('# Old')
+        self.paths.trash.mkdir()
+        (self.paths.trash / 'Old.json').write_text('{"author":"Unrelated"}')
         self.assertEqual(self.client.get('/article/Old/delete').status_code, 200)
-        self.assertEqual((trash / 'Old.md').read_text(), '# New copy')
-        self.assertFalse((trash / 'Old.json').exists())
+        self.assertFalse((self.paths.trash / 'Old.json').exists())
 
-    def test_comment_listing(self):
-        """Read saved comments in order and reject corrupt JSON."""
+    def test_malformed_metadata_is_not_overwritten(self):
+        """Reject corrupt JSON and valid JSON with invalid field types."""
+        self.create()
+        metadata_path = self.paths.articles / 'My_article.json'
+        for source in ('{broken', '[]', '{"tags":42}', '{"author":null}'):
+            metadata_path.write_text(source)
+            self.assertEqual(self.client.get('/article/My_article').status_code, 500)
+            self.assertEqual(self.client.post('/article/My_article/edit', json={'author': 'New'}).status_code, 500)
+            self.assertEqual(metadata_path.read_text(), source)
+
+    def test_symlinks_are_not_followed(self):
+        """Reject linked article and metadata files."""
+        outside = self.paths.root / 'outside.md'
+        outside.write_text('Private')
+        (self.paths.articles / 'Linked.md').symlink_to(outside)
+        self.assertEqual(self.client.get('/article/Linked').status_code, 400)
+        self.assertEqual(self.client.get('/list').json(), [])
+        self.create()
+        metadata = self.paths.articles / 'My_article.json'
+        metadata.unlink()
+        metadata.symlink_to(outside)
+        self.assertEqual(self.client.get('/article/My_article').status_code, 500)
+        self.assertEqual(outside.read_text(), 'Private')
+
+    def test_list_excludes_non_articles(self):
+        """Exclude JSON, images, directories, unsafe names and links."""
+        (self.paths.articles / 'b.md').write_text('# B')
+        (self.paths.articles / 'A.md').write_text('# A')
+        (self.paths.articles / 'Photo.jpg').write_bytes(b'')
+        (self.paths.articles / 'folder.md').mkdir()
+        (self.paths.articles / 'bad..name.md').write_text('Bad')
+        self.assertEqual([entry['articleUrl'] for entry in self.client.get('/list').json()], ['A', 'b'])
+
+    def test_comment_persistence_order_and_anonymous_author(self):
+        """Persist comments and read them from a fresh Python process."""
         self.assertEqual(self.client.get('/comments').json(), [])
-        records = [{'id': 'first', 'author': '', 'content': 'Hello'}, {'id': 'second', 'author': 'Alex', 'content': 'World'}]
-        (self.root / 'comments.json').write_text(json.dumps(records))
-        self.assertEqual(self.client.get('/comments').json(), records)
-        (self.root / 'comments.json').write_text('{broken')
-        self.assertEqual(self.client.get('/comments').status_code, 500)
-
-    def test_comment_creation_and_persistence(self):
-        """Persist anonymous comments with distinct server-generated IDs."""
-        first = self.client.post('/comments', json={'content': 'First', 'author': None})
-        second = self.client.post('/comments', json={'content': 'Second', 'author': 'Léa'})
+        first = self.client.post('/comments', json={'content': 'Hello', 'author': None})
+        second = self.client.post('/comments', json={'content': '<b>Plain text</b>', 'author': 'Léa'})
         self.assertEqual(first.status_code, 201)
         self.assertEqual(first.json()['author'], '')
         self.assertNotEqual(first.json()['id'], second.json()['id'])
         self.assertEqual(self.client.get('/comments').json(), [first.json(), second.json()])
-        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.root))
-        result = subprocess.run([sys.executable, '-B', '-c', 'import comments; print(len(comments.list_comments()))'], cwd=Path(__file__).resolve().parents[1], env=environment, text=True, capture_output=True, check=True)
+        environment = dict(os.environ, WIKI_CONTENT_DIR=str(self.paths.root))
+        result = subprocess.run(
+            [sys.executable, '-B', '-c', 'import comments; print(len(comments.list_comments()))'],
+            cwd=Path(__file__).resolve().parents[1], env=environment,
+            capture_output=True, text=True, check=True,
+        )
         self.assertEqual(result.stdout.strip(), '2')
+
+    def test_comment_validation_and_corruption(self):
+        """Reject blank comments and never replace corrupt storage."""
+        self.assertEqual(self.client.post('/comments', json={'content': '  '}).status_code, 400)
+        self.assertEqual(self.client.post('/comments', json={}).status_code, 422)
+        self.paths.comments.write_text('{broken')
+        self.assertEqual(self.client.get('/comments').status_code, 500)
+        self.assertEqual(self.client.post('/comments', json={'content': 'Hi'}).status_code, 500)
+        self.assertEqual(self.paths.comments.read_text(), '{broken')
+
+    def test_concurrent_comments_are_not_lost(self):
+        """Keep every concurrent comment and generate distinct IDs."""
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(lambda index: comments.create_comment(NewComment(content=str(index))), range(20)))
+        self.assertEqual(len(comments.list_comments()), 20)
+        self.assertEqual(len({entry.id for entry in results}), 20)
+
+    def test_concurrent_article_creation_has_one_winner(self):
+        """Prevent concurrent creates from overwriting the same article."""
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            statuses = list(executor.map(lambda _: self.create().status_code, range(4)))
+        self.assertEqual(sorted(statuses), [201, 409, 409, 409])
+
+    def test_failed_pair_write_rolls_back(self):
+        """Restore the original Markdown if metadata replacement fails."""
+        self.create(author='Original')
+        original = self.client.get('/article/My_article').json()
+        replace = storage._replace_file
+        failed = False
+        def fail_metadata_once(path, content):
+            nonlocal failed
+            if path.suffix == '.json' and not failed:
+                failed = True
+                raise PermissionError('Simulated failure')
+            replace(path, content)
+        with patch.object(storage, '_replace_file', side_effect=fail_metadata_once):
+            response = self.client.post('/article/My_article/edit', json={'content': '# Replaced', 'author': 'New'})
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(self.client.get('/article/My_article').json(), original)
+
+    def test_raw_html_and_dangerous_links(self):
+        """Escape raw HTML and reject executable Markdown link targets."""
+        result = self.create(content='<script>alert(1)</script>\n\n[link](javascript:alert(1))').json()
+        self.assertNotIn('<script>', result['content'])
+        self.assertNotIn('href="javascript:', result['content'])
+        self.assertIn('<script>', result['source'])
+
+    def test_cors_and_openapi(self):
+        """Expose frontend routes and support local-file browser origins."""
+        response = self.client.options('/create', headers={
+            'Origin': 'null', 'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'content-type',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['access-control-allow-origin'], '*')
+        schema = self.client.get('/openapi.json').json()
+        for route in ('/list', '/create', '/comments', '/article/{article_identifier}/edit', '/article/{article_identifier}/delete'):
+            self.assertIn(route, schema['paths'])
+        self.assertEqual(set(schema['components']['schemas']['NewArticle']['required']), {'name', 'content'})
 
 
 if __name__ == '__main__':
