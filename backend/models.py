@@ -41,11 +41,14 @@ class NewArticle(ArticleMetadata):
     content: str = Field(description="Article content written in Markdown")
 
 
-class ArticleUpdate(BaseModel):
-    """Receive required replacement Markdown for an existing article."""
+class ArticleUpdate(ArticleMetadata):
+    """Receive changes, preserving every field omitted from the request.
 
-    model_config = ConfigDict(strict=True)
-    content: str
+    Empty metadata clears its saved value. An omitted content field
+    preserves the Markdown; an explicit null content is rejected.
+    """
+
+    content: str | None = Field(default=None, description="Replacement Markdown body")
 
 
 class ErrorResponse(BaseModel):

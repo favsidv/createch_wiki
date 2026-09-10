@@ -49,6 +49,8 @@ La création accepte les métadonnées facultatives et écrit séparément le co
 
 POST /article/{article_identifier}/edit remplace le Markdown validé et conserve les métadonnées existantes.
 
+Les modifications peuvent viser uniquement les métadonnées. Un champ omis est conservé ; une valeur vide le supprime. Les métadonnées seules ne réécrivent pas le Markdown.
+
 ## Tests
 
 ```bash

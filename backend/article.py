@@ -282,30 +282,48 @@ def create_article(article_request: NewArticle) -> StoredArticle:
 
 
 def update_article(article_identifier: str, article_update: ArticleUpdate) -> StoredArticle:
-    """Replace an article body while preserving its metadata.
+    """Update supplied fields and preserve omitted fields.
 
     Parameters
     ----------
     article_identifier : str
-        Existing article identifier.
+        Identifier of the existing article.
     article_update : ArticleUpdate
-        Required replacement Markdown.
+        Replacement content and metadata fields, all omittable.
 
     Returns
     -------
     StoredArticle
-        Updated article with unchanged metadata.
+        Article after the requested changes.
 
     Raises
     ------
     ArticleNotFoundError
-        If the article does not exist.
+        If the article is absent.
     InvalidArticleContentError
-        If the new body is invalid.
+        If supplied content or metadata cannot be saved.
+
+    Notes
+    -----
+    Empty metadata clears a field. Legacy JSON headers are migrated to
+    companion files on update. Metadata-only edits keep the Markdown
+    file unchanged unless it contains a legacy header.
     """
-    source = _validate_content(article_update.content)
     with storage_lock(paths.root):
         current = _read_article(article_identifier)
-        path = get_article_path(article_identifier)
-        write_files({path: source.encode("utf-8")})
-        return StoredArticle(article_identifier, source, current.metadata)
+        supplied = article_update.model_dump(exclude_unset=True)
+        source = current.source
+        if "content" in supplied:
+            source = _validate_content(article_update.content)
+        metadata_values = current.metadata.model_dump()
+        metadata_values.update({key: value for key, value in supplied.items() if key != "content"})
+        metadata = ArticleMetadata.model_validate(metadata_values)
+        serialized_metadata = _metadata_bytes(metadata)
+        article_path = get_article_path(article_identifier)
+        changes = {}
+        if "content" in supplied or current.has_legacy_header:
+            changes[article_path] = source.encode("utf-8")
+        if any(key != "content" for key in supplied) or current.has_legacy_header:
+            changes[article_path.with_suffix(".json")] = serialized_metadata
+        write_files(changes)
+        return StoredArticle(article_identifier, source, metadata)

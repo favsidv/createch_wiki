@@ -173,6 +173,18 @@ class WikiTests(unittest.TestCase):
         self.assertEqual(result.json()['author'], 'Alex')
         self.assertEqual(self.client.get('/article/My_article').json(), result.json())
 
+    def test_partial_metadata_editing(self):
+        """Preserve omitted values and clear explicitly empty fields."""
+        self.create(author='Alex', tags=['Python'], category='Programming')
+        timestamp = (self.articles / 'My_article.md').stat().st_mtime_ns
+        result = self.client.post('/article/My_article/edit', json={'author': 'Léa'})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()['tags'], ['Python'])
+        self.assertEqual((self.articles / 'My_article.md').stat().st_mtime_ns, timestamp)
+        result = self.client.post('/article/My_article/edit', json={'author': '', 'tags': []})
+        self.assertEqual((result.json()['author'], result.json()['tags']), ('', []))
+        self.assertEqual(result.json()['category'], 'Programming')
+
 
 if __name__ == '__main__':
     unittest.main()
