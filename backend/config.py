@@ -25,6 +25,10 @@ class StoragePaths:
         """Return the directory containing active articles."""
         return self.root / "articles"
 
+    @property
+    def trash(self) -> Path:
+        """Return the directory containing deleted articles."""
+        return self.root / "trash"
 
 
 paths = StoragePaths(

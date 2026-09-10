@@ -55,6 +55,8 @@ Les anciennes premières lignes JSON sont interprétées sans modifier les fichi
 
 En cas d’échec récupérable sur plusieurs fichiers, les changements terminés sont restaurés. Cela ne constitue pas une transaction résistante à une coupure brutale.
 
+GET /article/{article_identifier}/delete déplace logiquement le Markdown et son éventuel JSON vers la corbeille et renvoie une confirmation.
+
 ## Tests
 
 ```bash

@@ -3,11 +3,11 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Never
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 import article
 from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError, InvalidArticleContentError)
-from models import (Article, ArticleInfo, ErrorResponse, NewArticle, ArticleUpdate)
+from models import (Article, ArticleInfo, ErrorResponse, NewArticle, ArticleUpdate, DeleteResult)
 from rendering import build_article_response
 
 app = FastAPI(title="Wiki API", version="1.0.0")
@@ -189,6 +189,38 @@ def update_article(article_identifier: str, article_update: ArticleUpdate) -> Ar
     with _translate_storage_exceptions():
         stored_article = article.update_article(article_identifier, article_update)
         return build_article_response(stored_article)
+
+
+@app.get("/article/{article_identifier}/delete", response_model=DeleteResult, responses=_ERROR_RESPONSES)
+def delete_article(article_identifier: str, response: Response) -> DeleteResult:
+    """Move an article and its metadata to trash.
+
+    Parameters
+    ----------
+    article_identifier : str
+        Existing article identifier.
+    response : fastapi.Response
+        Response receiving cache-control headers.
+
+    Returns
+    -------
+    DeleteResult
+        Confirmation that the article was removed from active storage.
+
+    Raises
+    ------
+    HTTPException
+        If the article is missing or the move fails.
+
+    Notes
+    -----
+    GET is retained to match the supplied frontend contract. This route
+    changes state and must not be prefetched or cached by clients.
+    """
+    with _translate_storage_exceptions():
+        article.delete_article(article_identifier)
+    response.headers["Cache-Control"] = "no-store"
+    return DeleteResult(deleted=True)
 
 
 @app.get("/", response_model=dict[str, str])

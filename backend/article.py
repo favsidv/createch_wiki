@@ -327,3 +327,46 @@ def update_article(article_identifier: str, article_update: ArticleUpdate) -> St
             changes[article_path.with_suffix(".json")] = serialized_metadata
         write_files(changes)
         return StoredArticle(article_identifier, source, metadata)
+
+
+def delete_article(article_identifier: str) -> None:
+    """Move an article and its optional JSON file into trash.
+
+    Parameters
+    ----------
+    article_identifier : str
+        Identifier of the article to remove from active storage.
+
+    Raises
+    ------
+    ArticleNotFoundError
+        If the article does not exist.
+
+    Notes
+    -----
+    Existing trash copies are rejected until replacement is supported.
+    """
+    with storage_lock(paths.root):
+        article_path = get_article_path(article_identifier)
+        try:
+            markdown_bytes = article_path.read_bytes()
+        except FileNotFoundError:
+            require_directory(paths.articles)
+            raise ArticleNotFoundError("Article not found")
+        metadata_path = article_path.with_suffix(".json")
+        validate_storage_file(metadata_path)
+        try:
+            metadata_bytes = metadata_path.read_bytes()
+        except FileNotFoundError:
+            metadata_bytes = None
+        if paths.trash.is_symlink():
+            raise InvalidArticlePathError("Trash must not be a symbolic link")
+        paths.trash.mkdir(exist_ok=True)
+        if (paths.trash / article_path.name).exists() or (paths.trash / metadata_path.name).exists():
+            raise FileExistsError("An article with this identifier is already in trash")
+        write_files({
+            paths.trash / article_path.name: markdown_bytes,
+            paths.trash / metadata_path.name: metadata_bytes,
+            article_path: None,
+            metadata_path: None,
+        })

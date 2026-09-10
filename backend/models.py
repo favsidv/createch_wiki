@@ -51,6 +51,12 @@ class ArticleUpdate(ArticleMetadata):
     content: str | None = Field(default=None, description="Replacement Markdown body")
 
 
+class DeleteResult(BaseModel):
+    """Confirm that an article was moved to trash."""
+
+    deleted: bool
+
+
 class ErrorResponse(BaseModel):
     """Describe an application error returned by the HTTP layer."""
 

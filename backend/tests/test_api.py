@@ -215,6 +215,15 @@ class WikiTests(unittest.TestCase):
         self.assertEqual(result.status_code, 500)
         self.assertEqual(self.client.get('/article/My_article').json(), previous)
 
+    def test_trash_move(self):
+        """Remove an article from active storage and preserve its pair."""
+        self.create(author='Alex')
+        result = self.client.get('/article/My_article/delete')
+        self.assertEqual(result.json(), {'deleted': True})
+        self.assertEqual(self.client.get('/list').json(), [])
+        self.assertTrue((self.root / 'trash/My_article.md').exists())
+        self.assertTrue((self.root / 'trash/My_article.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()
