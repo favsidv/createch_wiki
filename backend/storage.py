@@ -4,9 +4,11 @@ import stat
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from threading import RLock
 
 from exceptions import InvalidStoredDataError
 
+_thread_lock = RLock()
 
 
 def require_directory(directory: Path) -> None:
@@ -51,7 +53,7 @@ def validate_storage_file(path: Path) -> None:
 
 @contextmanager
 def storage_lock(directory: Path) -> Iterator[None]:
-    """Check storage availability before an operation.
+    """Serialize storage operations between threads of this process.
 
     Parameters
     ----------
@@ -61,14 +63,11 @@ def storage_lock(directory: Path) -> Iterator[None]:
     Yields
     ------
     None
-        Control while storage is used.
-
-    Notes
-    -----
-    This boundary does not yet coordinate concurrent operations.
+        Control while the thread lock is held.
     """
     require_directory(directory)
-    yield
+    with _thread_lock:
+        yield
 
 
 def _replace_file(path: Path, content: bytes) -> None:

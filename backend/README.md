@@ -37,6 +37,8 @@ GET /list renvoie les articles triés et exclut JSON, images, dossiers, liens et
 
 POST /create valide le nom et le Markdown, génère l’identifiant et renvoie 201. Une création ne remplace pas un fichier existant ; un doublon donne 409.
 
+Un RLock protège les opérations simultanées des threads du même processus, dont les créations concurrentes.
+
 ## Tests
 
 ```bash

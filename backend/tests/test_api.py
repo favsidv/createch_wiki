@@ -114,6 +114,12 @@ class WikiTests(unittest.TestCase):
             self.assertEqual(self.create(**payload).status_code, 400)
         self.assertEqual(self.client.post('/create', json={}).status_code, 422)
 
+    def test_concurrent_creation(self):
+        """Allow one successful creation for a shared article name."""
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            statuses = list(executor.map(lambda _: self.create().status_code, range(4)))
+        self.assertEqual(sorted(statuses), [201, 409, 409, 409])
+
 
 if __name__ == '__main__':
     unittest.main()
