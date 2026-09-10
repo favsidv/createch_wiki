@@ -218,15 +218,37 @@ def _validate_content(content: str | None) -> str:
     return content
 
 
+def _metadata_bytes(metadata: ArticleMetadata) -> bytes:
+    """Encode client metadata and reject unencodable text.
+
+    Parameters
+    ----------
+    metadata : ArticleMetadata
+        Metadata supplied by a client.
+
+    Returns
+    -------
+    bytes
+        UTF-8 JSON contents.
+
+    Raises
+    ------
+    InvalidArticleContentError
+        If metadata contains invalid Unicode.
+    """
+    try:
+        return serialize_metadata(metadata)
+    except UnicodeEncodeError:
+        raise InvalidArticleContentError("Article metadata must be valid UTF-8")
 
 
 def create_article(article_request: NewArticle) -> StoredArticle:
-    """Create a Markdown file without replacing an existing article.
+    """Create separate Markdown and JSON files without replacing articles.
 
     Parameters
     ----------
     article_request : NewArticle
-        Display name and Markdown body.
+        Name, Markdown body and optional metadata.
 
     Returns
     -------
@@ -238,18 +260,22 @@ def create_article(article_request: NewArticle) -> StoredArticle:
     InvalidArticleContentError
         If the name or content is invalid.
     FileExistsError
-        If the destination file already exists.
+        If either destination file already exists.
     """
     name = article_request.name.strip()
     if not 1 <= len(name) <= MAX_ARTICLE_NAME_LENGTH:
         raise InvalidArticleContentError("Article name must contain between 1 and 50 characters")
     _validate_content(article_request.content)
     identifier = "_".join(name.split())
+    metadata = ArticleMetadata.model_validate(article_request.model_dump())
+    serialized_metadata = _metadata_bytes(metadata)
     with storage_lock(paths.root):
         article_path = get_article_path(identifier)
-        if article_path.exists():
+        metadata_path = article_path.with_suffix(".json")
+        if article_path.exists() or metadata_path.exists() or metadata_path.is_symlink():
             raise FileExistsError("An article with this identifier already exists")
         write_files({
             article_path: article_request.content.encode("utf-8"),
+            metadata_path: serialized_metadata,
         })
-    return StoredArticle(identifier, article_request.content, ArticleMetadata())
+    return StoredArticle(identifier, article_request.content, metadata)

@@ -155,6 +155,15 @@ class WikiTests(unittest.TestCase):
         sidecar.write_text('{broken')
         self.assertEqual(self.client.get('/article/Old').status_code, 500)
 
+    def test_metadata_creation(self):
+        """Store metadata separately and preserve it after reading."""
+        result = self.create(author='Léa', tags=['Python'], category='Programming')
+        self.assertEqual(result.status_code, 201)
+        self.assertEqual(result.json()['author'], 'Léa')
+        self.assertEqual(self.client.get('/article/My_article').json(), result.json())
+        self.assertEqual((self.articles / 'My_article.md').read_text(), result.json()['source'])
+        self.assertEqual(json.loads((self.articles / 'My_article.json').read_text())['tags'], ['Python'])
+
 
 if __name__ == '__main__':
     unittest.main()

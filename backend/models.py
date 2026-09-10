@@ -34,12 +34,11 @@ class Article(ArticleBase, ArticleMetadata):
     source: str = Field(description="Original Markdown without metadata")
 
 
-class NewArticle(BaseModel):
-    """Receive a name and Markdown body for article creation."""
+class NewArticle(ArticleMetadata):
+    """Receive a name, Markdown body and optional metadata for creation."""
 
-    model_config = ConfigDict(strict=True)
     name: str
-    content: str
+    content: str = Field(description="Article content written in Markdown")
 
 
 

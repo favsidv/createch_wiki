@@ -45,6 +45,8 @@ Chaque remplacement passe par un fichier temporaire entièrement écrit et synch
 
 ArticleMetadata définit author, tags et category avec des valeurs vides par défaut. Les lectures utilisent le JSON compagnon ; les fichiers absents restent compatibles et les données invalides donnent 500.
 
+La création accepte les métadonnées facultatives et écrit séparément le corps .md et le JSON associé.
+
 ## Tests
 
 ```bash
