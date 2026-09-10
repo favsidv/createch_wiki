@@ -53,6 +53,8 @@ Les modifications peuvent viser uniquement les métadonnées. Un champ omis est 
 
 Les anciennes premières lignes JSON sont interprétées sans modifier les fichiers à la lecture. Une édition migre cet en-tête vers le fichier compagnon.
 
+En cas d’échec récupérable sur plusieurs fichiers, les changements terminés sont restaurés. Cela ne constitue pas une transaction résistante à une coupure brutale.
+
 ## Tests
 
 ```bash

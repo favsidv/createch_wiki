@@ -197,6 +197,24 @@ class WikiTests(unittest.TestCase):
         self.assertEqual(path.read_text(), '# Legacy')
         self.assertTrue(path.with_suffix('.json').exists())
 
+    def test_pair_write_rollback(self):
+        """Restore the Markdown when the subsequent JSON write fails."""
+        import storage
+        self.create(author='Original')
+        previous = self.client.get('/article/My_article').json()
+        replace = storage._replace_file
+        failed = False
+        def fail_once(path, content):
+            nonlocal failed
+            if path.suffix == '.json' and not failed:
+                failed = True
+                raise PermissionError('Simulated')
+            replace(path, content)
+        with patch.object(storage, '_replace_file', side_effect=fail_once):
+            result = self.client.post('/article/My_article/edit', json={'content': '# Changed', 'author': 'New'})
+        self.assertEqual(result.status_code, 500)
+        self.assertEqual(self.client.get('/article/My_article').json(), previous)
+
 
 if __name__ == '__main__':
     unittest.main()

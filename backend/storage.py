@@ -109,21 +109,40 @@ def _replace_file(path: Path, content: bytes) -> None:
 
 
 def write_files(changes: Mapping[Path, bytes | None]) -> None:
-    """Apply prepared file changes without group rollback.
+    """Apply file changes and restore previous contents on an exception.
 
     Parameters
     ----------
     changes : mapping of pathlib.Path to bytes or None
-        New file contents, or None to remove a file.
+        New contents, or None to remove a file.
 
     Notes
     -----
-    The caller owns the storage access boundary. A multi-file operation
-    is not transactional at this stage.
+    Call while holding the storage lock. Each replacement is atomic.
+    The group is not a crash-safe transaction; rollback can also fail
+    if the underlying storage becomes unavailable.
     """
-    for path, content in changes.items():
+    previous = {}
+    for path in changes:
         validate_storage_file(path)
-        if content is None:
-            path.unlink(missing_ok=True)
-        else:
-            _replace_file(path, content)
+        try:
+            previous[path] = path.read_bytes()
+        except FileNotFoundError:
+            previous[path] = None
+
+    applied = []
+    try:
+        for path, content in changes.items():
+            if content is None:
+                path.unlink(missing_ok=True)
+            else:
+                _replace_file(path, content)
+            applied.append(path)
+    except Exception:
+        # Restore completed changes, then propagate the original failure.
+        for path in reversed(applied):
+            if previous[path] is None:
+                path.unlink(missing_ok=True)
+            else:
+                _replace_file(path, previous[path])
+        raise
