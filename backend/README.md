@@ -41,6 +41,8 @@ Un RLock protège les opérations simultanées des threads du même processus, d
 
 fcntl.flock étend la coordination aux processus du backend qui partagent le même stockage. Cette implémentation cible macOS/Linux.
 
+Chaque remplacement passe par un fichier temporaire entièrement écrit et synchronisé. Cela protège un fichier contre une écriture partielle.
+
 ## Tests
 
 ```bash

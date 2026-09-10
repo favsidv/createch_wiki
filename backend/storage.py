@@ -1,10 +1,12 @@
 """Provide locked file access and atomic replacement on macOS and Linux."""
 
 import fcntl
+import os
 import stat
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import RLock
 
 from exceptions import InvalidStoredDataError
@@ -84,16 +86,26 @@ def storage_lock(directory: Path) -> Iterator[None]:
 
 
 def _replace_file(path: Path, content: bytes) -> None:
-    """Write complete bytes to the destination file.
+    """Replace one file using a fully written temporary file.
 
     Parameters
     ----------
     path : pathlib.Path
-        File to write.
+        Destination file.
     content : bytes
-        New file contents.
+        Complete new file contents.
     """
-    path.write_bytes(content)
+    temporary_path = None
+    try:
+        with NamedTemporaryFile(dir=path.parent, prefix=".wiki-", delete=False) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(content)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def write_files(changes: Mapping[Path, bytes | None]) -> None:

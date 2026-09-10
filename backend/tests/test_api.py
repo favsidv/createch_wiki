@@ -132,6 +132,17 @@ class WikiTests(unittest.TestCase):
         self.assertEqual(statuses.count(0), 1)
         self.assertEqual(self.client.get('/article/Workers').status_code, 200)
 
+    def test_atomic_replacement_failure(self):
+        """Keep the previous file when replacement cannot complete."""
+        import storage
+        target = self.articles / 'Existing.md'
+        target.write_text('Original')
+        with patch.object(Path, 'replace', side_effect=PermissionError('Simulated')):
+            with self.assertRaises(PermissionError):
+                storage._replace_file(target, b'Changed')
+        self.assertEqual(target.read_text(), 'Original')
+        self.assertEqual(list(self.articles.glob('.wiki-*')), [])
+
 
 if __name__ == '__main__':
     unittest.main()
