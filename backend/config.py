@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+MAX_ARTICLE_NAME_LENGTH = 50
+MAX_ARTICLE_CONTENT_LENGTH = 100_000
 
 
 @dataclass(frozen=True)

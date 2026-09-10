@@ -6,8 +6,8 @@ from typing import Never
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import article
-from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError)
-from models import (Article, ArticleInfo, ErrorResponse)
+from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError, InvalidArticleContentError)
+from models import (Article, ArticleInfo, ErrorResponse, NewArticle)
 from rendering import build_article_response
 
 app = FastAPI(title="Wiki API", version="1.0.0")
@@ -16,7 +16,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "P
 _ERROR_RESPONSES = {
     400: {"model": ErrorResponse, "description": "Invalid article data"},
     404: {"model": ErrorResponse, "description": "Article not found"},
-
+    409: {"model": ErrorResponse, "description": "Article already exists"},
     500: {"model": ErrorResponse, "description": "Storage is unavailable or invalid"},
 }
 
@@ -64,8 +64,12 @@ def _translate_storage_exceptions() -> Iterator[None]:
         raise HTTPException(status_code=400, detail="Invalid article identifier")
     except InvalidArticlePathError:
         raise HTTPException(status_code=400, detail="Invalid article path")
+    except InvalidArticleContentError:
+        raise HTTPException(status_code=400, detail="Invalid article name, content or metadata")
     except ArticleNotFoundError:
         raise HTTPException(status_code=404, detail="Article not found")
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="An article with this identifier already exists")
     except InvalidStoredDataError:
         raise HTTPException(status_code=500, detail="Stored wiki data is invalid")
     except (
@@ -132,6 +136,31 @@ def read_article(article_identifier: str) -> Article:
     """
     with _translate_storage_exceptions():
         stored_article = article.read_article(article_identifier)
+        return build_article_response(stored_article)
+
+
+@app.post("/create", response_model=Article, status_code=201, responses=_ERROR_RESPONSES)
+def create_article(article_request: NewArticle) -> Article:
+    """Create an article and return the resource expected by the frontend.
+
+    Parameters
+    ----------
+    article_request : NewArticle
+        Display name, Markdown body and its generated identifier.
+
+    Returns
+    -------
+    Article
+        Created article with its generated URL identifier.
+
+    Raises
+    ------
+    HTTPException
+        If the request is invalid, the identifier already exists or
+        storage cannot be written.
+    """
+    with _translate_storage_exceptions():
+        stored_article = article.create_article(article_request)
         return build_article_response(stored_article)
 
 

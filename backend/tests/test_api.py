@@ -104,6 +104,16 @@ class WikiTests(unittest.TestCase):
         (self.articles / 'folder.md').mkdir()
         self.assertEqual([item['articleUrl'] for item in self.client.get('/list').json()], ['A', 'b'])
 
+    def test_creation_and_duplicate(self):
+        """Create a readable article and reject invalid or duplicate input."""
+        result = self.create()
+        self.assertEqual(result.status_code, 201, result.text)
+        self.assertEqual(self.client.get('/article/My_article').json(), result.json())
+        self.assertEqual(self.create().status_code, 409)
+        for payload in ({'name': ''}, {'content': '  '}, {'name': '../private'}, {'content': 'x' * 100001}):
+            self.assertEqual(self.create(**payload).status_code, 400)
+        self.assertEqual(self.client.post('/create', json={}).status_code, 422)
+
 
 if __name__ == '__main__':
     unittest.main()

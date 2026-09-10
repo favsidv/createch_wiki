@@ -13,6 +13,10 @@ class InvalidArticleExtensionError(InvalidArticlePathError):
     """Indicate that an article does not have the Markdown extension."""
 
 
+class InvalidArticleContentError(ValueError):
+    """Indicate that an article name or Markdown body is invalid."""
+
+
 class ArticleNotFoundError(FileNotFoundError):
     """Indicate that a requested article is absent from valid storage."""
 

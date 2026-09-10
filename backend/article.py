@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from config import paths
 from exceptions import ArticleNotFoundError, InvalidArticleExtensionError, InvalidArticleIdentifierError, InvalidArticlePathError
-from storage import require_directory, validate_storage_file
+from config import MAX_ARTICLE_CONTENT_LENGTH, MAX_ARTICLE_NAME_LENGTH
+from exceptions import InvalidArticleContentError
+from models import NewArticle
+from storage import require_directory, validate_storage_file, storage_lock, write_files
 
 @dataclass(frozen=True)
 class StoredArticle:
@@ -100,7 +103,7 @@ def get_article_path(article_identifier: str) -> Path:
 
 
 def _read_article(article_identifier: str) -> StoredArticle:
-    """Read an article from its validated filesystem path.
+    """Read an article while the caller holds the storage lock.
 
     Parameters
     ----------
@@ -127,7 +130,7 @@ def _read_article(article_identifier: str) -> StoredArticle:
 
 
 def read_article(article_identifier: str) -> StoredArticle:
-    """Read an article from Markdown storage.
+    """Read an article and its optional metadata under the storage lock.
 
     Parameters
     ----------
@@ -137,14 +140,15 @@ def read_article(article_identifier: str) -> StoredArticle:
     Returns
     -------
     StoredArticle
-        Article content.
+        Article content and metadata.
 
     Raises
     ------
     ArticleNotFoundError
         If the article does not exist.
     """
-    return _read_article(article_identifier)
+    with storage_lock(paths.root):
+        return _read_article(article_identifier)
 
 
 def list_article_identifiers() -> list[str]:
@@ -160,14 +164,79 @@ def list_article_identifiers() -> list[str]:
     FileNotFoundError
         If the article directory is absent.
     """
-    require_directory(paths.articles)
-    identifiers = []
-    for article_path in paths.articles.iterdir():
-        if article_path.suffix != ".md" or article_path.is_symlink() or not article_path.is_file():
-            continue
-        try:
-            validate_article_identifier(article_path.stem)
-        except InvalidArticleIdentifierError:
-            continue
-        identifiers.append(article_path.stem)
-    return sorted(identifiers, key=lambda identifier: (identifier.casefold(), identifier))
+    with storage_lock(paths.root):
+        require_directory(paths.articles)
+        identifiers = []
+        for article_path in paths.articles.iterdir():
+            if article_path.suffix != ".md" or article_path.is_symlink() or not article_path.is_file():
+                continue
+            try:
+                validate_article_identifier(article_path.stem)
+            except InvalidArticleIdentifierError:
+                continue
+            identifiers.append(article_path.stem)
+        return sorted(identifiers, key=lambda identifier: (identifier.casefold(), identifier))
+
+
+def _validate_content(content: str | None) -> str:
+    """Validate Markdown supplied for creation or replacement.
+
+    Parameters
+    ----------
+    content : str or None
+        Proposed Markdown body.
+
+    Returns
+    -------
+    str
+        Validated Markdown, preserving its original whitespace.
+
+    Raises
+    ------
+    InvalidArticleContentError
+        If content is null, blank, too long or cannot be encoded.
+    """
+    if content is None or not content.strip():
+        raise InvalidArticleContentError("Article content must not be empty")
+    if len(content) > MAX_ARTICLE_CONTENT_LENGTH:
+        raise InvalidArticleContentError("Article content exceeds 100000 characters")
+    try:
+        content.encode("utf-8")
+    except UnicodeEncodeError:
+        raise InvalidArticleContentError("Article content must be valid UTF-8")
+    return content
+
+
+def create_article(article_request: NewArticle) -> StoredArticle:
+    """Create a Markdown file without replacing an existing article.
+
+    Parameters
+    ----------
+    article_request : NewArticle
+        Display name and Markdown body.
+
+    Returns
+    -------
+    StoredArticle
+        Newly saved article.
+
+    Raises
+    ------
+    InvalidArticleContentError
+        If the name or content is invalid.
+    FileExistsError
+        If the destination file already exists.
+    """
+    name = article_request.name.strip()
+    if not 1 <= len(name) <= MAX_ARTICLE_NAME_LENGTH:
+        raise InvalidArticleContentError("Article name must contain between 1 and 50 characters")
+    _validate_content(article_request.content)
+    identifier = "_".join(name.split())
+    with storage_lock(paths.root):
+        article_path = get_article_path(identifier)
+        if article_path.exists():
+            raise FileExistsError("An article with this identifier already exists")
+        write_files({
+            article_path: article_request.content.encode("utf-8"),
+        })
+    return StoredArticle(identifier, article_request.content)

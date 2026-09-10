@@ -35,6 +35,8 @@ rendering.py transforme les données d’un article en réponse HTML/Markdown. I
 
 GET /list renvoie les articles triés et exclut JSON, images, dossiers, liens et identifiants invalides.
 
+POST /create valide le nom et le Markdown, génère l’identifiant et renvoie 201. Une création ne remplace pas un fichier existant ; un doublon donne 409.
+
 ## Tests
 
 ```bash
