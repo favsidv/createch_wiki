@@ -1,11 +1,14 @@
-"""Read and serialize companion JSON metadata."""
+"""Read companion JSON metadata and older inline metadata headers."""
 
 import json
 from pathlib import Path
+
+from pydantic import ValidationError
+
 from exceptions import InvalidStoredDataError
 from models import ArticleMetadata
 from storage import validate_storage_file
-from pydantic import ValidationError
+
 
 def _validate_metadata(value: object) -> ArticleMetadata:
     """Validate stored metadata and report malformed data.
@@ -31,41 +34,66 @@ def _validate_metadata(value: object) -> ArticleMetadata:
         raise InvalidStoredDataError("Stored article metadata is invalid")
 
 
-
-def read_article_metadata(metadata_path: Path, markdown_source: str) -> tuple[ArticleMetadata, str, bool]:
-    """Read optional metadata without changing the Markdown body.
+def read_article_metadata(
+    metadata_path: Path,
+    markdown_source: str,
+) -> tuple[ArticleMetadata, str, bool]:
+    """Read metadata and separate any legacy header from the Markdown.
 
     Parameters
     ----------
     metadata_path : pathlib.Path
         Companion JSON file, which may be absent.
     markdown_source : str
-        Original Markdown content.
+        Stored Markdown, possibly containing a legacy JSON header.
 
     Returns
     -------
     ArticleMetadata
-        Validated metadata, with defaults for absent fields.
+        Metadata from the companion file, legacy header or defaults.
     str
-        Unchanged Markdown body.
+        Markdown body without a recognized legacy header.
     bool
-        False, since inline headers are not interpreted at this stage.
+        Whether the Markdown contained a legacy header.
 
     Raises
     ------
     InvalidStoredDataError
-        If stored JSON or metadata types are invalid.
+        If stored metadata is malformed or the JSON path is unsafe.
+
+    Notes
+    -----
+    A companion file takes precedence over inline metadata. Reading
+    never migrates or rewrites an existing article.
     """
     validate_storage_file(metadata_path)
     try:
         serialized_metadata = metadata_path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return ArticleMetadata(), markdown_source, False
+        serialized_metadata = None
+
+    first_line, separator, remaining_source = markdown_source.partition("\n")
     try:
-        value = json.loads(serialized_metadata)
+        inline_metadata = json.loads(first_line)
     except json.JSONDecodeError:
-        raise InvalidStoredDataError("Stored article metadata is not valid JSON")
-    return _validate_metadata(value), markdown_source, False
+        inline_metadata = None
+    has_header = isinstance(inline_metadata, dict) and any(
+        field in inline_metadata for field in ArticleMetadata.model_fields
+    )
+    body = remaining_source if has_header and separator else markdown_source
+    if has_header and not separator:
+        body = ""
+
+    if serialized_metadata is not None:
+        try:
+            metadata_value = json.loads(serialized_metadata)
+        except json.JSONDecodeError:
+            raise InvalidStoredDataError("Stored article metadata is not valid JSON")
+        return _validate_metadata(metadata_value), body, has_header
+    if has_header:
+        return _validate_metadata(inline_metadata), body, True
+    return ArticleMetadata(), markdown_source, False
+
 
 def serialize_metadata(metadata: ArticleMetadata) -> bytes:
     """Encode metadata as a readable UTF-8 JSON object.

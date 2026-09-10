@@ -51,6 +51,8 @@ POST /article/{article_identifier}/edit remplace le Markdown validé et conserve
 
 Les modifications peuvent viser uniquement les métadonnées. Un champ omis est conservé ; une valeur vide le supprime. Les métadonnées seules ne réécrivent pas le Markdown.
 
+Les anciennes premières lignes JSON sont interprétées sans modifier les fichiers à la lecture. Une édition migre cet en-tête vers le fichier compagnon.
+
 ## Tests
 
 ```bash

@@ -185,6 +185,18 @@ class WikiTests(unittest.TestCase):
         self.assertEqual((result.json()['author'], result.json()['tags']), ('', []))
         self.assertEqual(result.json()['category'], 'Programming')
 
+    def test_legacy_header_migration(self):
+        """Read inline metadata and migrate it only when editing."""
+        path = self.articles / 'Legacy.md'
+        path.write_text('{"author":"Alex"}\n# Legacy')
+        result = self.client.get('/article/Legacy').json()
+        self.assertEqual(result['source'], '# Legacy')
+        self.assertEqual(result['author'], 'Alex')
+        self.assertFalse(path.with_suffix('.json').exists())
+        self.assertEqual(self.client.post('/article/Legacy/edit', json={'tags': ['Old']}).status_code, 200)
+        self.assertEqual(path.read_text(), '# Legacy')
+        self.assertTrue(path.with_suffix('.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()
