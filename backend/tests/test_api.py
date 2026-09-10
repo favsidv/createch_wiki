@@ -16,6 +16,7 @@ import main
 import article
 from config import StoragePaths
 from models import ArticleMetadata
+import comments
 
 class WikiTests(unittest.TestCase):
     """Check HTTP contracts against isolated temporary storage."""
@@ -28,7 +29,7 @@ class WikiTests(unittest.TestCase):
         self.articles = self.root / 'articles'
         self.articles.mkdir()
         self.paths = StoragePaths(self.root)
-        for module in (article,):
+        for module in (article, comments):
             replacement = patch.object(module, 'paths', self.paths)
             replacement.start()
             self.addCleanup(replacement.stop)
@@ -234,6 +235,15 @@ class WikiTests(unittest.TestCase):
         self.assertEqual(self.client.get('/article/Old/delete').status_code, 200)
         self.assertEqual((trash / 'Old.md').read_text(), '# New copy')
         self.assertFalse((trash / 'Old.json').exists())
+
+    def test_comment_listing(self):
+        """Read saved comments in order and reject corrupt JSON."""
+        self.assertEqual(self.client.get('/comments').json(), [])
+        records = [{'id': 'first', 'author': '', 'content': 'Hello'}, {'id': 'second', 'author': 'Alex', 'content': 'World'}]
+        (self.root / 'comments.json').write_text(json.dumps(records))
+        self.assertEqual(self.client.get('/comments').json(), records)
+        (self.root / 'comments.json').write_text('{broken')
+        self.assertEqual(self.client.get('/comments').status_code, 500)
 
 
 if __name__ == '__main__':

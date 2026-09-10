@@ -1,24 +1,47 @@
-"""Expose article routes and translate storage exceptions into HTTP."""
+"""Expose the wiki API and translate application exceptions into HTTP."""
 
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Never
+
 from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+
 import article
-from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError, InvalidArticleContentError)
-from models import (Article, ArticleInfo, ErrorResponse, NewArticle, ArticleUpdate, DeleteResult)
+import comments
+from exceptions import (
+    ArticleNotFoundError,
+    InvalidArticleContentError,
+    InvalidArticleIdentifierError,
+    InvalidArticlePathError,
+    InvalidStoredDataError,
+)
+from models import (
+    Article,
+    ArticleInfo,
+    ArticleUpdate,
+    Comment,
+    DeleteResult,
+    ErrorResponse,
+    NewArticle,
+)
 from rendering import build_article_response
 
 app = FastAPI(title="Wiki API", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type"],
+)
 
 _ERROR_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "Invalid article data"},
+    400: {"model": ErrorResponse, "description": "Invalid article or comment data"},
     404: {"model": ErrorResponse, "description": "Article not found"},
     409: {"model": ErrorResponse, "description": "Article already exists"},
     500: {"model": ErrorResponse, "description": "Storage is unavailable or invalid"},
 }
+
 
 def _build_storage_exception() -> HTTPException:
     """Build a public exception for a storage failure.
@@ -221,6 +244,26 @@ def delete_article(article_identifier: str, response: Response) -> DeleteResult:
         article.delete_article(article_identifier)
     response.headers["Cache-Control"] = "no-store"
     return DeleteResult(deleted=True)
+
+
+@app.get("/comments", response_model=list[Comment], responses={500: _ERROR_RESPONSES[500]})
+def list_comments() -> list[Comment]:
+    """Return site-wide comments from oldest to newest.
+
+    Returns
+    -------
+    list of Comment
+        Stored comments, or an empty list before the first comment.
+
+    Raises
+    ------
+    HTTPException
+        If comment storage is unavailable or invalid.
+    """
+    with _translate_storage_exceptions():
+        return comments.list_comments()
+
+
 
 
 @app.get("/", response_model=dict[str, str])

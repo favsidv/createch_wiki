@@ -1,6 +1,7 @@
-"""Define the article request and response contracts."""
+"""Define article and comment data exchanged with the frontend."""
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ArticleBase(BaseModel):
     """Define the display name and URL identifier shared by articles."""
@@ -49,6 +50,18 @@ class ArticleUpdate(ArticleMetadata):
     """
 
     content: str | None = Field(default=None, description="Replacement Markdown body")
+
+
+
+
+class Comment(BaseModel):
+    """Return a stored comment with its server-generated identifier."""
+
+    model_config = ConfigDict(strict=True)
+
+    id: str
+    author: str = ""
+    content: str
 
 
 class DeleteResult(BaseModel):

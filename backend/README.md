@@ -59,6 +59,8 @@ GET /article/{article_identifier}/delete déplace logiquement le Markdown et son
 
 Une suppression remplace les anciennes copies en corbeille et retire un ancien JSON si l’article actuel n’en possède pas.
 
+GET /comments lit les commentaires JSON dans leur ordre d’insertion, ou renvoie [] avant la première création. Les données corrompues sont refusées.
+
 ## Tests
 
 ```bash

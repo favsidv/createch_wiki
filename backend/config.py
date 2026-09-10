@@ -26,6 +26,11 @@ class StoragePaths:
         return self.root / "articles"
 
     @property
+    def comments(self) -> Path:
+        """Return the persistent site-wide comments file."""
+        return self.root / "comments.json"
+
+    @property
     def trash(self) -> Path:
         """Return the directory containing deleted articles."""
         return self.root / "trash"
