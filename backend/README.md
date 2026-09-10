@@ -57,6 +57,8 @@ En cas d’échec récupérable sur plusieurs fichiers, les changements terminé
 
 GET /article/{article_identifier}/delete déplace logiquement le Markdown et son éventuel JSON vers la corbeille et renvoie une confirmation.
 
+Une suppression remplace les anciennes copies en corbeille et retire un ancien JSON si l’article actuel n’en possède pas.
+
 ## Tests
 
 ```bash

@@ -224,6 +224,17 @@ class WikiTests(unittest.TestCase):
         self.assertTrue((self.root / 'trash/My_article.md').exists())
         self.assertTrue((self.root / 'trash/My_article.json').exists())
 
+    def test_trash_replacement(self):
+        """Replace an older trash copy and remove stale JSON metadata."""
+        (self.articles / 'Old.md').write_text('# New copy')
+        trash = self.root / 'trash'
+        trash.mkdir()
+        (trash / 'Old.md').write_text('Previous copy')
+        (trash / 'Old.json').write_text('{"author":"Unrelated"}')
+        self.assertEqual(self.client.get('/article/Old/delete').status_code, 200)
+        self.assertEqual((trash / 'Old.md').read_text(), '# New copy')
+        self.assertFalse((trash / 'Old.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

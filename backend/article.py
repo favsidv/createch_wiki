@@ -344,7 +344,8 @@ def delete_article(article_identifier: str) -> None:
 
     Notes
     -----
-    Existing trash copies are rejected until replacement is supported.
+    Existing trash copies are replaced. An unrelated old JSON trash
+    copy is removed when the active article has no companion file.
     """
     with storage_lock(paths.root):
         article_path = get_article_path(article_identifier)
@@ -362,8 +363,6 @@ def delete_article(article_identifier: str) -> None:
         if paths.trash.is_symlink():
             raise InvalidArticlePathError("Trash must not be a symbolic link")
         paths.trash.mkdir(exist_ok=True)
-        if (paths.trash / article_path.name).exists() or (paths.trash / metadata_path.name).exists():
-            raise FileExistsError("An article with this identifier is already in trash")
         write_files({
             paths.trash / article_path.name: markdown_bytes,
             paths.trash / metadata_path.name: metadata_bytes,
