@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 import main
 import article
 from config import StoragePaths
+from models import ArticleMetadata
 
 class WikiTests(unittest.TestCase):
     """Check HTTP contracts against isolated temporary storage."""
@@ -93,7 +94,7 @@ class WikiTests(unittest.TestCase):
     def test_renderer_does_not_read_storage(self):
         """Render a stored article object without creating a file."""
         from rendering import build_article_response
-        record = article.StoredArticle('Example', '# Example')
+        record = article.StoredArticle('Example', '# Example', ArticleMetadata())
         self.assertIn('<h1>Example</h1>', build_article_response(record).content)
 
     def test_article_listing(self):
@@ -142,6 +143,17 @@ class WikiTests(unittest.TestCase):
                 storage._replace_file(target, b'Changed')
         self.assertEqual(target.read_text(), 'Original')
         self.assertEqual(list(self.articles.glob('.wiki-*')), [])
+
+    def test_companion_metadata_reading(self):
+        """Read optional metadata and reject malformed companion JSON."""
+        (self.articles / 'Old.md').write_text('# Old')
+        result = self.client.get('/article/Old').json()
+        self.assertEqual((result['author'], result['tags'], result['category']), ('', [], ''))
+        sidecar = self.articles / 'Old.json'
+        sidecar.write_text('{"author":"Léa","tags":["Python"]}')
+        self.assertEqual(self.client.get('/article/Old').json()['author'], 'Léa')
+        sidecar.write_text('{broken')
+        self.assertEqual(self.client.get('/article/Old').status_code, 500)
 
 
 if __name__ == '__main__':

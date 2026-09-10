@@ -43,6 +43,8 @@ fcntl.flock étend la coordination aux processus du backend qui partagent le mê
 
 Chaque remplacement passe par un fichier temporaire entièrement écrit et synchronisé. Cela protège un fichier contre une écriture partielle.
 
+ArticleMetadata définit author, tags et category avec des valeurs vides par défaut. Les lectures utilisent le JSON compagnon ; les fichiers absents restent compatibles et les données invalides donnent 500.
+
 ## Tests
 
 ```bash

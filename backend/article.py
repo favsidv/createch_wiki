@@ -1,20 +1,30 @@
-"""Validate and store Markdown articles independently of HTTP."""
+"""Manage article validation, Markdown files, metadata and trash."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from config import paths
-from exceptions import ArticleNotFoundError, InvalidArticleExtensionError, InvalidArticleIdentifierError, InvalidArticlePathError
-from config import MAX_ARTICLE_CONTENT_LENGTH, MAX_ARTICLE_NAME_LENGTH
-from exceptions import InvalidArticleContentError
-from models import NewArticle
-from storage import require_directory, validate_storage_file, storage_lock, write_files
+
+from config import MAX_ARTICLE_CONTENT_LENGTH, MAX_ARTICLE_NAME_LENGTH, paths
+from exceptions import (
+    ArticleNotFoundError,
+    InvalidArticleContentError,
+    InvalidArticleExtensionError,
+    InvalidArticleIdentifierError,
+    InvalidArticlePathError,
+)
+from metadata import read_article_metadata, serialize_metadata
+from models import ArticleMetadata, NewArticle
+from storage import require_directory, storage_lock, validate_storage_file, write_files
+
 
 @dataclass(frozen=True)
 class StoredArticle:
-    """Keep an article identifier and its original Markdown body."""
+    """Keep an article identifier, Markdown body and validated metadata."""
 
     identifier: str
     source: str
+    metadata: ArticleMetadata
+    has_legacy_header: bool = False
+
 
 def validate_article_identifier(article_identifier: str) -> None:
     """Validate an article identifier without accessing the filesystem.
@@ -113,7 +123,7 @@ def _read_article(article_identifier: str) -> StoredArticle:
     Returns
     -------
     StoredArticle
-        Markdown without HTML rendering.
+        Markdown and metadata without HTML rendering.
 
     Raises
     ------
@@ -126,7 +136,8 @@ def _read_article(article_identifier: str) -> StoredArticle:
     except FileNotFoundError:
         require_directory(paths.articles)
         raise ArticleNotFoundError("Article not found")
-    return StoredArticle(article_identifier, source)
+    metadata, source, has_header = read_article_metadata(article_path.with_suffix(".json"), source)
+    return StoredArticle(article_identifier, source, metadata, has_header)
 
 
 def read_article(article_identifier: str) -> StoredArticle:
@@ -207,6 +218,8 @@ def _validate_content(content: str | None) -> str:
     return content
 
 
+
+
 def create_article(article_request: NewArticle) -> StoredArticle:
     """Create a Markdown file without replacing an existing article.
 
@@ -239,4 +252,4 @@ def create_article(article_request: NewArticle) -> StoredArticle:
         write_files({
             article_path: article_request.content.encode("utf-8"),
         })
-    return StoredArticle(identifier, article_request.content)
+    return StoredArticle(identifier, article_request.content, ArticleMetadata())

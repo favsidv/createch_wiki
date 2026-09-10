@@ -13,21 +13,36 @@ class ArticleInfo(ArticleBase):
     """Define list information independently of the detailed article."""
 
 
-
-class Article(ArticleBase):
-    """Return rendered HTML and the original Markdown body."""
-
-    content: str = Field(description="Article content rendered as HTML")
-    source: str = Field(description="Original Markdown content")
-
-
-class NewArticle(BaseModel):
-    """Receive a display name and Markdown body for creation."""
+class ArticleMetadata(BaseModel):
+    """Define optional metadata with empty values when fields are omitted."""
 
     model_config = ConfigDict(strict=True)
 
+    author: str = Field(default="", description="Name of the author", examples=["Léa"])
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Keywords describing the article",
+        examples=[["Python", "Web"]],
+    )
+    category: str = Field(default="", description="Article category", examples=["Programming"])
+
+
+class Article(ArticleBase, ArticleMetadata):
+    """Return metadata, rendered HTML and the original Markdown body."""
+
+    content: str = Field(description="Article content rendered as HTML")
+    source: str = Field(description="Original Markdown without metadata")
+
+
+class NewArticle(BaseModel):
+    """Receive a name and Markdown body for article creation."""
+
+    model_config = ConfigDict(strict=True)
     name: str
-    content: str = Field(description="Article content written in Markdown")
+    content: str
+
+
+
 
 class ErrorResponse(BaseModel):
     """Describe an application error returned by the HTTP layer."""

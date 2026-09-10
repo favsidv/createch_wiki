@@ -116,7 +116,7 @@ def reject_missing_article_identifier() -> Never:
 
 @app.get("/article/{article_identifier}", response_model=Article, responses=_ERROR_RESPONSES)
 def read_article(article_identifier: str) -> Article:
-    """Read an article with its rendered Markdown.
+    """Read an article with its metadata and rendered Markdown.
 
     Parameters
     ----------
@@ -146,7 +146,7 @@ def create_article(article_request: NewArticle) -> Article:
     Parameters
     ----------
     article_request : NewArticle
-        Display name, Markdown body and its generated identifier.
+        Display name, Markdown body and optional metadata.
 
     Returns
     -------
@@ -162,6 +162,8 @@ def create_article(article_request: NewArticle) -> Article:
     with _translate_storage_exceptions():
         stored_article = article.create_article(article_request)
         return build_article_response(stored_article)
+
+
 
 
 @app.get("/", response_model=dict[str, str])
