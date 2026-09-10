@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import article
 from exceptions import (ArticleNotFoundError, InvalidArticleIdentifierError, InvalidArticlePathError, InvalidStoredDataError, InvalidArticleContentError)
-from models import (Article, ArticleInfo, ErrorResponse, NewArticle)
+from models import (Article, ArticleInfo, ErrorResponse, NewArticle, ArticleUpdate)
 from rendering import build_article_response
 
 app = FastAPI(title="Wiki API", version="1.0.0")
@@ -164,6 +164,31 @@ def create_article(article_request: NewArticle) -> Article:
         return build_article_response(stored_article)
 
 
+@app.post("/article/{article_identifier}/edit", response_model=Article, responses=_ERROR_RESPONSES)
+def update_article(article_identifier: str, article_update: ArticleUpdate) -> Article:
+    """Update supplied article fields and preserve omitted values.
+
+    Parameters
+    ----------
+    article_identifier : str
+        Existing article identifier.
+    article_update : ArticleUpdate
+        Replacement Markdown or metadata fields.
+
+    Returns
+    -------
+    Article
+        Saved article with updated metadata and rendered content.
+
+    Raises
+    ------
+    HTTPException
+        If supplied data is invalid, the article is missing or storage
+        cannot be updated.
+    """
+    with _translate_storage_exceptions():
+        stored_article = article.update_article(article_identifier, article_update)
+        return build_article_response(stored_article)
 
 
 @app.get("/", response_model=dict[str, str])

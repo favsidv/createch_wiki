@@ -47,6 +47,8 @@ ArticleMetadata définit author, tags et category avec des valeurs vides par dé
 
 La création accepte les métadonnées facultatives et écrit séparément le corps .md et le JSON associé.
 
+POST /article/{article_identifier}/edit remplace le Markdown validé et conserve les métadonnées existantes.
+
 ## Tests
 
 ```bash

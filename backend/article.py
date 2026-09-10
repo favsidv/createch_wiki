@@ -12,7 +12,7 @@ from exceptions import (
     InvalidArticlePathError,
 )
 from metadata import read_article_metadata, serialize_metadata
-from models import ArticleMetadata, NewArticle
+from models import ArticleMetadata, ArticleUpdate, NewArticle
 from storage import require_directory, storage_lock, validate_storage_file, write_files
 
 
@@ -279,3 +279,33 @@ def create_article(article_request: NewArticle) -> StoredArticle:
             metadata_path: serialized_metadata,
         })
     return StoredArticle(identifier, article_request.content, metadata)
+
+
+def update_article(article_identifier: str, article_update: ArticleUpdate) -> StoredArticle:
+    """Replace an article body while preserving its metadata.
+
+    Parameters
+    ----------
+    article_identifier : str
+        Existing article identifier.
+    article_update : ArticleUpdate
+        Required replacement Markdown.
+
+    Returns
+    -------
+    StoredArticle
+        Updated article with unchanged metadata.
+
+    Raises
+    ------
+    ArticleNotFoundError
+        If the article does not exist.
+    InvalidArticleContentError
+        If the new body is invalid.
+    """
+    source = _validate_content(article_update.content)
+    with storage_lock(paths.root):
+        current = _read_article(article_identifier)
+        path = get_article_path(article_identifier)
+        write_files({path: source.encode("utf-8")})
+        return StoredArticle(article_identifier, source, current.metadata)

@@ -41,6 +41,11 @@ class NewArticle(ArticleMetadata):
     content: str = Field(description="Article content written in Markdown")
 
 
+class ArticleUpdate(BaseModel):
+    """Receive required replacement Markdown for an existing article."""
+
+    model_config = ConfigDict(strict=True)
+    content: str
 
 
 class ErrorResponse(BaseModel):

@@ -164,6 +164,15 @@ class WikiTests(unittest.TestCase):
         self.assertEqual((self.articles / 'My_article.md').read_text(), result.json()['source'])
         self.assertEqual(json.loads((self.articles / 'My_article.json').read_text())['tags'], ['Python'])
 
+    def test_body_editing(self):
+        """Replace Markdown while preserving the saved metadata."""
+        self.create(author='Alex', tags=['Python'])
+        result = self.client.post('/article/My_article/edit', json={'content': '# Changed'})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()['source'], '# Changed')
+        self.assertEqual(result.json()['author'], 'Alex')
+        self.assertEqual(self.client.get('/article/My_article').json(), result.json())
+
 
 if __name__ == '__main__':
     unittest.main()
