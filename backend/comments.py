@@ -12,7 +12,6 @@ from storage import storage_lock, validate_storage_file, write_files
 
 _comment_list = TypeAdapter(list[Comment])
 
-
 def _read_comments() -> list[Comment]:
     """Read comments while the caller holds the storage lock.
 
@@ -39,7 +38,6 @@ def _read_comments() -> list[Comment]:
         raise InvalidStoredDataError("Stored comment identifiers are duplicated")
     return comments
 
-
 def list_comments() -> list[Comment]:
     """Read all site-wide comments in insertion order.
 
@@ -50,7 +48,6 @@ def list_comments() -> list[Comment]:
     """
     with storage_lock(paths.root):
         return _read_comments()
-
 
 def create_comment(comment_request: NewComment) -> Comment:
     """Validate and persist a comment with a server-generated UUID.

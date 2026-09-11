@@ -8,7 +8,6 @@ MAX_ARTICLE_NAME_LENGTH = 50
 MAX_ARTICLE_CONTENT_LENGTH = 100_000
 MAX_COMMENT_CONTENT_LENGTH = 10_000
 
-
 @dataclass(frozen=True)
 class StoragePaths:
     """Group the directories and files used by the wiki.
@@ -17,6 +16,10 @@ class StoragePaths:
     ----------
     root : pathlib.Path
         Directory containing articles, comments and trash.
+
+    Notes
+    -----
+    To be clear, AI MADE THAT1!
     """
 
     root: Path
@@ -35,7 +38,6 @@ class StoragePaths:
     def trash(self) -> Path:
         """Return the directory containing deleted articles."""
         return self.root / "trash"
-
 
 paths = StoragePaths(
     Path(os.environ.get(

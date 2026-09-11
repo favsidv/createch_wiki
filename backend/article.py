@@ -15,7 +15,6 @@ from metadata import read_article_metadata, serialize_metadata
 from models import ArticleMetadata, ArticleUpdate, NewArticle
 from storage import require_directory, storage_lock, validate_storage_file, write_files
 
-
 @dataclass(frozen=True)
 class StoredArticle:
     """Keep an article identifier, Markdown body and validated metadata."""
@@ -24,7 +23,6 @@ class StoredArticle:
     source: str
     metadata: ArticleMetadata
     has_legacy_header: bool = False
-
 
 def validate_article_identifier(article_identifier: str) -> None:
     """Validate an article identifier without accessing the filesystem.
@@ -51,7 +49,6 @@ def validate_article_identifier(article_identifier: str) -> None:
         raise InvalidArticleIdentifierError("Article identifier must be valid UTF-8")
     if len(encoded_identifier) > 250:
         raise InvalidArticleIdentifierError("Article identifier is too long")
-
 
 def validate_article_path(article_path: Path) -> None:
     """Validate the article location, extension and file type.
@@ -85,7 +82,6 @@ def validate_article_path(article_path: Path) -> None:
         raise InvalidArticleExtensionError("Article extension must be .md")
     validate_storage_file(article_path)
 
-
 def get_article_path(article_identifier: str) -> Path:
     """Build and validate the path to an article file.
 
@@ -110,7 +106,6 @@ def get_article_path(article_identifier: str) -> Path:
     article_path = paths.articles / f"{article_identifier}.md"
     validate_article_path(article_path)
     return article_path
-
 
 def _read_article(article_identifier: str) -> StoredArticle:
     """Read an article while the caller holds the storage lock.
@@ -139,7 +134,6 @@ def _read_article(article_identifier: str) -> StoredArticle:
     metadata, source, has_header = read_article_metadata(article_path.with_suffix(".json"), source)
     return StoredArticle(article_identifier, source, metadata, has_header)
 
-
 def read_article(article_identifier: str) -> StoredArticle:
     """Read an article and its optional metadata under the storage lock.
 
@@ -160,7 +154,6 @@ def read_article(article_identifier: str) -> StoredArticle:
     """
     with storage_lock(paths.root):
         return _read_article(article_identifier)
-
 
 def list_article_identifiers() -> list[str]:
     """List readable article identifiers in alphabetical order.
@@ -187,7 +180,6 @@ def list_article_identifiers() -> list[str]:
                 continue
             identifiers.append(article_path.stem)
         return sorted(identifiers, key=lambda identifier: (identifier.casefold(), identifier))
-
 
 def _validate_content(content: str | None) -> str:
     """Validate Markdown supplied for creation or replacement.
@@ -217,7 +209,6 @@ def _validate_content(content: str | None) -> str:
         raise InvalidArticleContentError("Article content must be valid UTF-8")
     return content
 
-
 def _metadata_bytes(metadata: ArticleMetadata) -> bytes:
     """Encode client metadata and reject unencodable text.
 
@@ -240,7 +231,6 @@ def _metadata_bytes(metadata: ArticleMetadata) -> bytes:
         return serialize_metadata(metadata)
     except UnicodeEncodeError:
         raise InvalidArticleContentError("Article metadata must be valid UTF-8")
-
 
 def create_article(article_request: NewArticle) -> StoredArticle:
     """Create separate Markdown and JSON files without replacing articles.
@@ -280,9 +270,8 @@ def create_article(article_request: NewArticle) -> StoredArticle:
         })
     return StoredArticle(identifier, article_request.content, metadata)
 
-
 def update_article(article_identifier: str, article_update: ArticleUpdate) -> StoredArticle:
-    """Update supplied fields and preserve omitted fields.
+    """Update supplied fields and preserve omitted fields. Mostly made by AI.
 
     Parameters
     ----------
@@ -327,7 +316,6 @@ def update_article(article_identifier: str, article_update: ArticleUpdate) -> St
             changes[article_path.with_suffix(".json")] = serialized_metadata
         write_files(changes)
         return StoredArticle(article_identifier, source, metadata)
-
 
 def delete_article(article_identifier: str) -> None:
     """Move an article and its optional JSON file into trash.

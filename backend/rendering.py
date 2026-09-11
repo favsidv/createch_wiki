@@ -5,7 +5,6 @@ import markdown2
 from article import StoredArticle
 from models import Article
 
-
 def build_article_response(article: StoredArticle) -> Article:
     """Render the Markdown body and attach already validated metadata.
 

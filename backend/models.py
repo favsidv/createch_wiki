@@ -2,17 +2,14 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 class ArticleBase(BaseModel):
     """Define the display name and URL identifier shared by articles."""
 
     name: str
     articleUrl: str
 
-
 class ArticleInfo(ArticleBase):
     """Define list information independently of the detailed article."""
-
 
 class ArticleMetadata(BaseModel):
     """Define optional metadata with empty values when fields are omitted."""
@@ -27,20 +24,17 @@ class ArticleMetadata(BaseModel):
     )
     category: str = Field(default="", description="Article category", examples=["Programming"])
 
-
 class Article(ArticleBase, ArticleMetadata):
     """Return metadata, rendered HTML and the original Markdown body."""
 
     content: str = Field(description="Article content rendered as HTML")
     source: str = Field(description="Original Markdown without metadata")
 
-
 class NewArticle(ArticleMetadata):
     """Receive a name, Markdown body and optional metadata for creation."""
 
     name: str
     content: str = Field(description="Article content written in Markdown")
-
 
 class ArticleUpdate(ArticleMetadata):
     """Receive changes, preserving every field omitted from the request.
@@ -51,7 +45,6 @@ class ArticleUpdate(ArticleMetadata):
 
     content: str | None = Field(default=None, description="Replacement Markdown body")
 
-
 class NewComment(BaseModel):
     """Receive plain text and an optional author for a site-wide comment."""
 
@@ -59,7 +52,6 @@ class NewComment(BaseModel):
 
     author: str | None = ""
     content: str = Field(description="Comment text, not HTML or Markdown")
-
 
 class Comment(BaseModel):
     """Return a stored comment with its server-generated identifier."""
@@ -70,12 +62,10 @@ class Comment(BaseModel):
     author: str = ""
     content: str
 
-
 class DeleteResult(BaseModel):
     """Confirm that an article was moved to trash."""
 
     deleted: bool
-
 
 class ErrorResponse(BaseModel):
     """Describe an application error returned by the HTTP layer."""

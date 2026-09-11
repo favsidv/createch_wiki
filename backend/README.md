@@ -1,4 +1,4 @@
-# Wiki backend
+# [Wiki backend](https://github.com/favsidv/createch_wiki)
 
 This folder contains the backend of a wiki built with FastAPI, Python exceptions, Markdown and JSON storage.
 

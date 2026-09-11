@@ -13,7 +13,6 @@ from exceptions import InvalidStoredDataError
 
 _thread_lock = RLock()
 
-
 def require_directory(directory: Path) -> None:
     """Require an existing directory.
 
@@ -31,7 +30,6 @@ def require_directory(directory: Path) -> None:
     """
     if not stat.S_ISDIR(directory.stat().st_mode):
         raise NotADirectoryError("Storage location is not a directory")
-
 
 def validate_storage_file(path: Path) -> None:
     """Accept a regular file or an unused filename, without following links.
@@ -53,10 +51,9 @@ def validate_storage_file(path: Path) -> None:
     if not stat.S_ISREG(mode):
         raise InvalidStoredDataError("Storage files must be regular files")
 
-
 @contextmanager
 def storage_lock(directory: Path) -> Iterator[None]:
-    """Serialize access across server threads and worker processes.
+    """Serialize access across server threads and worker processes. Made by AI.
 
     Parameters
     ----------
@@ -84,7 +81,6 @@ def storage_lock(directory: Path) -> Iterator[None]:
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
-
 def _replace_file(path: Path, content: bytes) -> None:
     """Replace one file using a fully written temporary file.
 
@@ -106,7 +102,6 @@ def _replace_file(path: Path, content: bytes) -> None:
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
-
 
 def write_files(changes: Mapping[Path, bytes | None]) -> None:
     """Apply file changes and restore previous contents on an exception.

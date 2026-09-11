@@ -9,7 +9,6 @@ from exceptions import InvalidStoredDataError
 from models import ArticleMetadata
 from storage import validate_storage_file
 
-
 def _validate_metadata(value: object) -> ArticleMetadata:
     """Validate stored metadata and report malformed data.
 
@@ -33,12 +32,11 @@ def _validate_metadata(value: object) -> ArticleMetadata:
     except ValidationError:
         raise InvalidStoredDataError("Stored article metadata is invalid")
 
-
 def read_article_metadata(
     metadata_path: Path,
     markdown_source: str,
 ) -> tuple[ArticleMetadata, str, bool]:
-    """Read metadata and separate any legacy header from the Markdown.
+    """Read metadata and separate any legacy header from the Markdown. Mostly made by AI.
 
     Parameters
     ----------
@@ -94,9 +92,8 @@ def read_article_metadata(
         return _validate_metadata(inline_metadata), body, True
     return ArticleMetadata(), markdown_source, False
 
-
 def serialize_metadata(metadata: ArticleMetadata) -> bytes:
-    """Encode metadata as a readable UTF-8 JSON object.
+    """Encode metadata as a readable UTF-8 JSON object. Made by AI.
 
     Parameters
     ----------

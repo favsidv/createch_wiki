@@ -1,5 +1,3 @@
-"""Expose the wiki API and translate application exceptions into HTTP."""
-
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Never
@@ -37,13 +35,12 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-_ERROR_RESPONSES = {
+ERROR_RESPONSES = {
     400: {"model": ErrorResponse, "description": "Invalid article or comment data"},
     404: {"model": ErrorResponse, "description": "Article not found"},
     409: {"model": ErrorResponse, "description": "Article already exists"},
     500: {"model": ErrorResponse, "description": "Storage is unavailable or invalid"},
 }
-
 
 def _build_storage_exception() -> HTTPException:
     """Build a public exception for a storage failure.
@@ -51,7 +48,7 @@ def _build_storage_exception() -> HTTPException:
     Returns
     -------
     HTTPException
-        HTTP 500 exception without private filesystem details.
+        HTTP 500 exception
 
     Notes
     -----
@@ -61,7 +58,6 @@ def _build_storage_exception() -> HTTPException:
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Wiki storage is unavailable",
     )
-
 
 @contextmanager
 def _translate_storage_exceptions() -> Iterator[None]:
@@ -75,13 +71,11 @@ def _translate_storage_exceptions() -> Iterator[None]:
     Raises
     ------
     HTTPException
-        If validation fails, an article is missing or already exists,
-        or a storage operation fails.
+        If validation fails, an article is missing or already exists, or a storage operation fails.
 
     Notes
     -----
-    Storage functions contain no FastAPI imports. This boundary keeps
-    HTTP decisions in main.py and shares the same mapping across routes.
+    Storage functions contain no FastAPI imports. This boundary keeps HTTP decisions in main.py and shares the same mapping across routes.  Just to be clear, AI MADE THAT. Didn't know about @contentmanager
     """
     try:
         yield
@@ -108,8 +102,7 @@ def _translate_storage_exceptions() -> Iterator[None]:
     ):
         raise _build_storage_exception()
 
-
-@app.get("/list", response_model=list[ArticleInfo], responses={500: _ERROR_RESPONSES[500]})
+@app.get("/list", response_model=list[ArticleInfo], responses={500: ERROR_RESPONSES[500]})
 def list_articles() -> list[ArticleInfo]:
     """List active articles in alphabetical order.
 
@@ -127,9 +120,8 @@ def list_articles() -> list[ArticleInfo]:
         identifiers = article.list_article_identifiers()
     return [ArticleInfo(name=identifier.replace("_", " "), articleUrl=identifier) for identifier in identifiers]
 
-
 @app.get("/article", response_model=None, include_in_schema=False)
-@app.get("/article/", response_model=None, responses={400: _ERROR_RESPONSES[400]})
+@app.get("/article/", response_model=None, responses={400: ERROR_RESPONSES[400]})
 def reject_missing_article_identifier() -> Never:
     """Reject a request that does not specify an article identifier.
 
@@ -140,8 +132,7 @@ def reject_missing_article_identifier() -> Never:
     """
     raise HTTPException(status_code=400, detail="An article identifier is required")
 
-
-@app.get("/article/{article_identifier}", response_model=Article, responses=_ERROR_RESPONSES)
+@app.get("/article/{article_identifier}", response_model=Article, responses=ERROR_RESPONSES)
 def read_article(article_identifier: str) -> Article:
     """Read an article with its metadata and rendered Markdown.
 
@@ -158,15 +149,13 @@ def read_article(article_identifier: str) -> Article:
     Raises
     ------
     HTTPException
-        If the identifier is invalid, the article is missing or storage
-        cannot be read.
+        If the identifier is invalid, the article is missing or storage cannot be read.
     """
     with _translate_storage_exceptions():
         stored_article = article.read_article(article_identifier)
         return build_article_response(stored_article)
 
-
-@app.post("/create", response_model=Article, status_code=201, responses=_ERROR_RESPONSES)
+@app.post("/create", response_model=Article, status_code=201, responses=ERROR_RESPONSES)
 def create_article(article_request: NewArticle) -> Article:
     """Create an article and return the resource expected by the frontend.
 
@@ -183,15 +172,13 @@ def create_article(article_request: NewArticle) -> Article:
     Raises
     ------
     HTTPException
-        If the request is invalid, the identifier already exists or
-        storage cannot be written.
+        If the request is invalid, the identifier already exists or storage cannot be written.
     """
     with _translate_storage_exceptions():
         stored_article = article.create_article(article_request)
         return build_article_response(stored_article)
 
-
-@app.post("/article/{article_identifier}/edit", response_model=Article, responses=_ERROR_RESPONSES)
+@app.post("/article/{article_identifier}/edit", response_model=Article, responses=ERROR_RESPONSES)
 def update_article(article_identifier: str, article_update: ArticleUpdate) -> Article:
     """Update supplied article fields and preserve omitted values.
 
@@ -210,15 +197,13 @@ def update_article(article_identifier: str, article_update: ArticleUpdate) -> Ar
     Raises
     ------
     HTTPException
-        If supplied data is invalid, the article is missing or storage
-        cannot be updated.
+        If supplied data is invalid, the article is missing or storage cannot be updated.
     """
     with _translate_storage_exceptions():
         stored_article = article.update_article(article_identifier, article_update)
         return build_article_response(stored_article)
 
-
-@app.get("/article/{article_identifier}/delete", response_model=DeleteResult, responses=_ERROR_RESPONSES)
+@app.get("/article/{article_identifier}/delete", response_model=DeleteResult, responses=ERROR_RESPONSES)
 def delete_article(article_identifier: str, response: Response) -> DeleteResult:
     """Move an article and its metadata to trash.
 
@@ -241,16 +226,14 @@ def delete_article(article_identifier: str, response: Response) -> DeleteResult:
 
     Notes
     -----
-    GET is retained to match the supplied frontend contract. This route
-    changes state and must not be prefetched or cached by clients.
+    GET is retained to match the supplied frontend contract. This route changes state and must not be prefetched or cached by clients.
     """
     with _translate_storage_exceptions():
         article.delete_article(article_identifier)
     response.headers["Cache-Control"] = "no-store"
     return DeleteResult(deleted=True)
 
-
-@app.get("/comments", response_model=list[Comment], responses={500: _ERROR_RESPONSES[500]})
+@app.get("/comments", response_model=list[Comment], responses={500: ERROR_RESPONSES[500]})
 def list_comments() -> list[Comment]:
     """Return site-wide comments from oldest to newest.
 
@@ -267,10 +250,9 @@ def list_comments() -> list[Comment]:
     with _translate_storage_exceptions():
         return comments.list_comments()
 
-
 @app.post("/comments", response_model=Comment, status_code=201, responses={
-    400: _ERROR_RESPONSES[400],
-    500: _ERROR_RESPONSES[500],
+    400: ERROR_RESPONSES[400],
+    500: ERROR_RESPONSES[500],
 })
 def create_comment(comment_request: NewComment) -> Comment:
     """Create a persistent plain-text comment with a unique identifier.
@@ -293,7 +275,6 @@ def create_comment(comment_request: NewComment) -> Comment:
     with _translate_storage_exceptions():
         return comments.create_comment(comment_request)
 
-
 @app.get("/", response_model=dict[str, str])
 def read_api_root() -> dict[str, str]:
     """Return a welcome message without checking storage availability.
@@ -303,4 +284,4 @@ def read_api_root() -> dict[str, str]:
     dict of str to str
         API welcome message.
     """
-    return {"message": "It works!!!"}
+    return {"message": "Hi Paul! Glad to have you onboard!"}
